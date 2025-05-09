@@ -1,0 +1,165 @@
+.pdf-viewer {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.pdf-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    justify-content: flex-start; /* Left align controls */
+    width: 100%;
+    margin-bottom: 0.5rem;
+}
+
+.pdf-container {
+    position: relative;
+    border: 1px solid #ccc;
+    min-height: 500px;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    background: #f9f9f9;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: flex-start; /* Left align PDF */
+}
+
+.react-pdf__Document {
+    width: 100%;
+    max-width: 100%;
+}
+
+.react-pdf__Page {
+    margin: 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    background: white;
+}
+
+.annotation-marker {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background-color:  #00ff00;
+    border-radius: 50%;
+    cursor: pointer;
+    transform: translate(-50%, -50%);
+}
+
+.new-annotation-marker {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background-color: #00ff00;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.annotation-form {
+    padding: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.annotation-form textarea {
+    width: 100%;
+    min-height: 100px;
+    margin-bottom: 1rem;
+}
+
+.annotation-details {
+    padding: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.annotation-history {
+    margin-top: 1rem;
+}
+
+.history-item {
+    padding: 0.5rem;
+    border-bottom: 1px solid #eee;
+}
+
+.history-item:last-child {
+    border-bottom: none;
+}
+
+.annotation-shape.highlight {
+    position: absolute;
+    background: rgba(255, 255, 0, 0.4);
+    border: 1px solid #ff0;
+    pointer-events: auto;
+}
+
+.annotation-shape.rectangle {
+    position: absolute;
+    border: 2px solid rgb(102, 255, 0);
+    background: rgba(0, 0, 255, 0.1);
+    pointer-events: auto;
+}
+
+.annotation-meta {
+    position: absolute;
+    left: 105%;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 250px;
+    max-width: 400px;
+    z-index: 10;
+    pointer-events: none;
+}
+
+.annotation-date {
+    font-size:0.90em;
+    color: #000; /* Set text color to black */
+    margin-bottom: 2px;
+    background: transparent;
+    font-family: monospace;
+    display: flex;
+    align-items: left;
+    gap: 4px;
+}
+
+.annotation-content {
+    background: rgba(255,255,255,0.95);
+    color: #222;
+    border: 1px solid #888;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 0.9em;
+    white-space: pre-line;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    min-width: 250px;
+    max-width: 400px;
+    pointer-events: none;
+    display: block;
+}
+
+.annotation-marker:hover .annotation-content,
+.annotation-shape:hover .annotation-content {
+    display: block;
+}
+
+.annotation-marker:hover .annotation-content,
+.annotation-shape:hover .annotation-content {
+    display: block;
+}
+
+@media (max-width: 900px) {
+    .pdf-container {
+        min-height: 300px;
+    }
+    .pdf-controls {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}

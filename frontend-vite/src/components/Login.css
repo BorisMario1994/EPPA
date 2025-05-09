@@ -1,0 +1,125 @@
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  padding: 20px;
+}
+
+.login-box {
+  background: rgba(255, 255, 255, 0.95);
+  padding: 2.5rem;
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 400px;
+  backdrop-filter: blur(10px);
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.login-header h1 {
+  font-size: 2.5rem;
+  color: #2c3e50;
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: -1px;
+}
+
+.login-header p {
+  color: #7f8c8d;
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.form-group {
+  position: relative;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 1rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  background: #f8f9fa;
+  color: #2c3e50;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #3498db;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+  color: #2c3e50;
+}
+
+.form-group input::placeholder {
+  color: #95a5a6;
+}
+
+.error-message {
+  color: #e74c3c;
+  background: rgba(231, 76, 60, 0.1);
+  padding: 0.75rem;
+  border-radius: 8px;
+  text-align: center;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.login-button {
+  width: 100%;
+  padding: 1rem;
+  background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.login-button:hover {
+  background: linear-gradient(135deg, #2980b9 0%, #3498db 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
+}
+
+.button-arrow {
+  font-size: 1.2rem;
+  transition: transform 0.3s ease;
+}
+
+.login-button:hover .button-arrow {
+  transform: translateX(3px);
+}
+
+.login-footer {
+  text-align: center;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+}
+
+.login-footer p {
+  color: #95a5a6;
+  font-size: 0.8rem;
+  margin: 0;
+} 

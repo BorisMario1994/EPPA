@@ -1,0 +1,430 @@
+/* frontend-vite/src/components/OutgoingRequests.css */
+.outgoing-requests {
+  padding: 2rem;
+}
+
+.outgoing-requests h2 {
+  color: #1a1a1a;
+  margin-bottom: 2rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.requests-table-container {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.requests-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.requests-table th,
+.requests-table td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+.requests-table th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.request-row {
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.request-row:hover {
+  background-color: #f8f9fa;
+}
+
+.request-row td {
+  color: #2c3e50;
+}
+
+.status {
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  display: inline-block;
+}
+
+.status.pending {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.status.approved {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.status.rejected {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.view-details-btn {
+  padding: 0.5rem 1rem;
+  background-color: #2196F3;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.view-details-btn:hover {
+  background-color: #1976D2;
+}
+
+.details-row {
+  background-color: #f8f9fa;
+}
+
+.request-details {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.details-main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+}
+
+.detail-section {
+  min-width: 200px;
+  flex: 1 1 200px;
+}
+
+.attachments-section {
+  margin-top: 1.5rem;
+}
+
+.detail-section h4 {
+  color: #1a1a1a;
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.detail-section p {
+  color: #2c3e50;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.no-requests {
+  text-align: center;
+  color: #2c3e50;
+  padding: 2rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.attachments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.attachment-item {
+  background: #f8f9fa;
+  padding: 0.75rem;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.attachment-item a {
+  color: #2196F3;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.attachment-item a:hover {
+  text-decoration: underline;
+}
+
+.upload-info {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.mini-add-btn {
+  background: #e0e0e0;
+  border: none;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  line-height: 20px;
+  text-align: center;
+  font-weight: bold;
+  margin-left: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.mini-add-btn:hover {
+  background: #bdbdbd;
+}
+.drop-area {
+  border: 1px dashed #aaa;
+  border-radius: 4px;
+  padding: 2px 6px;
+  min-height: 24px;
+  margin-top: 2px;
+}
+
+.user-picker-modal {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  color: #000;
+}
+.user-picker-content {
+  background: #fff;
+  padding: 2rem;
+  border-radius: 8px;
+  min-width: 320px;
+  max-width: 90vw;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+}
+.user-list {
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: 1rem;
+}
+.user-list-item {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+  color: #000;
+}
+.user-picker-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+.approve-btn {
+  background: #43a047;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.4rem 0.8rem;
+  margin-left: 0.5rem;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+.approve-btn:hover {
+  background: #2e7031;
+}
+.pic-btn {
+  background-color: #2196F3;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+.pic-btn:hover {
+  background-color: #1976D2;
+}
+.pic-dropdown {
+  position: absolute;
+  background: #fff;
+  border: 1px solid #aaa;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  z-index: 10;
+  margin-top: 4px;
+  min-width: 120px;
+}
+.pic-dropdown-item {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  color: #222;
+}
+.pic-dropdown-item:hover {
+  background: #f0f0f0;
+}
+
+.timeline-modal {
+  position: fixed;
+  z-index: 1001;
+  left: 0; top: 0; right: 0; bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.timeline-modal-content {
+  background: #f5f7fa;
+  padding: 28px 24px 20px 24px;
+  border-radius: 10px;
+  min-width: 370px;
+  max-width: 98vw;
+  box-shadow: 0 4px 32px rgba(0,0,0,0.22);
+  z-index: 1002;
+  position: relative;
+  color: #1a237e;
+  border: 2px solid #2196F3;
+}
+.timeline-modal-backdrop {
+  position: fixed;
+  left: 0; top: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.18);
+  z-index: 1000;
+}
+
+.timeline-modal-content h3 {
+  color: #1565c0;
+  margin-bottom: 18px;
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.timeline-modal-content label {
+  color: #1a237e;
+  font-weight: 500;
+  margin-right: 10px;
+}
+
+.timeline-modal-content input[type="date"] {
+  border: 1px solid #90caf9;
+  border-radius: 4px;
+  padding: 6px 36px 6px 10px;
+  font-size: 1.1rem;
+  height: 40px;
+  background: #fff;
+  color: #1a237e;
+  position: relative;
+  outline: none;
+  box-sizing: border-box;
+}
+
+/* Remove default calendar icon in Chrome/Safari/Edge */
+.timeline-modal-content input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  z-index: 2;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  right: 0;
+}
+
+/* Remove default icon in Firefox */
+.timeline-modal-content input[type="date"]::-moz-calendar-picker-indicator {
+  opacity: 0;
+}
+
+/* Custom calendar icon */
+.timeline-date-wrapper {
+  position: relative;
+  display: inline-block;
+}
+.timeline-date-wrapper .calendar-icon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  width: 22px;
+  height: 22px;
+  color: #1976d2;
+  opacity: 0.95;
+}
+
+.timeline-modal-content input[type="text"] {
+  border: 1px solid #90caf9;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 1rem;
+  margin-right: 8px;
+  background: #fff;
+  color: #1a237e;
+}
+
+.timeline-modal-content button {
+  background: #2196F3;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1.2rem;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  margin-left: 6px;
+  transition: background 0.2s;
+}
+.timeline-modal-content button:hover {
+  background: #1565c0;
+}
+
+.timeline-history {
+  max-height: 250px;
+  overflow-y: auto;
+  border: 1.5px solid #90caf9;
+  padding: 10px;
+  background: #e3f2fd;
+  border-radius: 6px;
+  margin-top: 10px;
+}
+
+.timeline-history > div {
+  background: #fff;
+  border-radius: 5px;
+  border: 1px solid #bbdefb;
+  margin-bottom: 10px;
+  padding: 10px 12px 6px 12px;
+  color: #263238;
+  box-shadow: 0 1px 4px rgba(33,150,243,0.07);
+}
+
+.timeline-history b {
+  color: #1976d2;
+}
+
+.timeline-modal-content .error {
+  color: #d32f2f;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.timeline-modal-content .close-btn {
+  background: #d32f2f;
+  color: #fff;
+  margin-top: 18px;
+  margin-left: 0;
+}
+.timeline-modal-content .close-btn:hover {
+  background: #b71c1c;
+}
+
+.requests-search-label {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #1976d2;
+  margin-right: 12px;
+  letter-spacing: 0.5px;
+}
