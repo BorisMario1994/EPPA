@@ -24,7 +24,7 @@ const CreateRequestForm = ({ user }) => {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const response = await fetch('http://192.168.100.236:5000/api/users');
+        const response = await fetch('http://localhost:5000/api/users');
         if (response.ok) {
           const data = await response.json();
           const filteredUsers = data.filter(u => u.UserId !== user.id);
@@ -133,7 +133,7 @@ const CreateRequestForm = ({ user }) => {
           console.log(pair[0], pair[1]);
       }
 
-      const response = await fetch('http://192.168.100.236:5000/api/requests', {
+      const response = await fetch('http://localhost:5000/api/requests', {
           method: 'POST',
           body: formDataToSend
       });

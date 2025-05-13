@@ -39,7 +39,7 @@ const PDFViewer = ({ documentId, filePath, userId, requestId, type }) => {
     console.log(documentId);
     const fetchAnnotations = async () => {
         try {
-            const response = await fetch(`http://192.168.100.236:5000/api/documents/${documentId}/annotations`);
+            const response = await fetch(`http://localhost:5000/api/documents/${documentId}/annotations`);
             if (response.ok) {
                 const data = await response.json();
                 setAnnotations(data);
@@ -51,7 +51,7 @@ const PDFViewer = ({ documentId, filePath, userId, requestId, type }) => {
 
     const fetchAnnotationHistory = async (annotationId) => {
         try {
-            const response = await fetch(`http://192.168.100.236:5000/api/annotations/${annotationId}/history`);
+            const response = await fetch(`http://localhost:5000/api/annotations/${annotationId}/history`);
             if (response.ok) {
                 const data = await response.json();
                 setAnnotationHistory(data);
@@ -106,7 +106,7 @@ const PDFViewer = ({ documentId, filePath, userId, requestId, type }) => {
         console.log(requestId);
         console.log(documentId);
         try {
-            const response = await fetch(`http://192.168.100.236:5000/api/documents/${documentId}/annotations`, {
+            const response = await fetch(`http://localhost:5000/api/documents/${documentId}/annotations`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -199,14 +199,14 @@ const PDFViewer = ({ documentId, filePath, userId, requestId, type }) => {
                 }}
             >
                 <Document
-                    file={`http://192.168.100.236:5000/${filePath.replace(/\\/g, '/')}`}
+                    file={`http://localhost:5000/${filePath.replace(/\\/g, '/')}`}
                     onLoadSuccess={({ numPages }) => {
                         console.log('PDF loaded successfully, pages:', numPages);
                         setNumPages(numPages);
                     }}
                     onLoadError={(error) => {
                         console.error('Error loading PDF:', error);
-                        console.error('Attempted file path:', `http://192.168.100.236:5000/${filePath.replace(/\\/g, '/')}`);
+                        console.error('Attempted file path:', `http://localhost:5000/${filePath.replace(/\\/g, '/')}`);
                     }}
                 >
                     {isPrinting

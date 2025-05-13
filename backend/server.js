@@ -83,7 +83,7 @@ app.get('/api/users', async (req, res) => {
 // Login endpoint
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
-    
+    //console.log(email)
     try {
         const pool = await sql.connect(config);
         const result = await pool.request()
@@ -106,9 +106,9 @@ app.post('/api/login', async (req, res) => {
 // Update the get attachments endpoint to use PDFDocuments table
 app.get('/api/requests/attachments/:requestId', async (req, res) => {
     const { requestId } = req.params;
-    console.log('Request ID:', requestId);
+   // console.log('Request ID:', requestId);
     try {
-        console.log('Request ID:', requestId);
+      //  console.log('Request ID:', requestId);
         const pool = await sql.connect(config);
         const result = await pool.request()
             .input('requestId', sql.Int, requestId)
@@ -120,7 +120,7 @@ app.get('/api/requests/attachments/:requestId', async (req, res) => {
                 ORDER BY d.UploadedAt DESC
             `);
         
-        console.log('Attachments from database:', result.recordset); // Debug log
+        //console.log('Attachments from database:', result.recordset); // Debug log
         res.json(result.recordset);
     } catch (err) {
         console.error('Error fetching attachments:', err);
@@ -134,7 +134,7 @@ app.get('/api/requests/:type/:userId', async (req, res) => {
     let whereClause = '';
     let joinClause = '';
     let orderBy = 'ORDER BY r.RequestId DESC';
-    console.log(type, userId);
+   // console.log(type, userId);
     switch (type) {
         case 'outgoing':
             whereClause = 
@@ -219,7 +219,7 @@ app.get('/api/requests/:type/:userId', async (req, res) => {
                 ${orderBy}
             `);
         res.json(result.recordset);
-        console.log(result.recordset);
+        //console.log(result.recordset);
     } catch (err) {
         console.error('Error fetching requests:', err);
         res.status(500).json({ error: 'Failed to fetch requests' });
@@ -282,8 +282,8 @@ app.post('/api/requests', upload.array('attachments'), async (req, res) => {
         const approvedByArray = Array.isArray(approvedBy) ? approvedBy : [approvedBy].filter(Boolean);
         const knownByArray = Array.isArray(knownBy) ? knownBy : [knownBy].filter(Boolean);
         
-        console.log('Approved By Array:', approvedByArray); // Debug log
-        console.log('Known By Array:', knownByArray); // Debug log
+      //  console.log('Approved By Array:', approvedByArray); // Debug log
+      //  console.log('Known By Array:', knownByArray); // Debug log
 
         const pool = await sql.connect(config);
         const result = await pool.request()
@@ -440,8 +440,8 @@ app.post('/api/documents/:documentId/annotations', async (req, res) => {
     try {
         const pool = await sql.connect(config);
         let annotationId;
-        console.log(annotationType)
-        console.log(userId, annotationType, content, pageNumber, x, y, x1, y1, x2, y2 );
+       // console.log(annotationType)
+       // console.log(userId, annotationType, content, pageNumber, x, y, x1, y1, x2, y2 );
         if (annotationType === 'pointer') {
             const result = await pool.request()
                 .input('documentId', sql.Int, documentId)
@@ -458,7 +458,7 @@ app.post('/api/documents/:documentId/annotations', async (req, res) => {
                     VALUES (@documentId, @userId, @annotationType, @content, @pageNumber, @xCoordinate, @yCoordinate);
                     
                 `);
-                console.log('SQL result:', result);
+              // console.log('SQL result:', result);
             annotationId = result.recordset[0].AnnotationId;
            
             
@@ -758,7 +758,7 @@ app.post('/api/requests/:requestId/addUser', async (req, res) => {
 app.post('/api/requests/:requestId/approve', async (req, res) => {
   const { requestId } = req.params;
   const { userId } = req.body; // Pass userId in the body
-  console.log(userId);
+ // console.log(userId);
   if (!userId) {
     return res.status(400).json({ error: 'userId is required' });
   }
@@ -961,4 +961,46 @@ app.post('/api/timeline/:requestId', async (req, res) => {
     console.error('Error adding timeline entry:', err);
     res.status(500).json({ error: 'Failed to add timeline entry' });
   }
+});
+
+// Add new attachment to a request
+app.post('/api/requests/:requestId/attachments', upload.single('attachment'), async (req, res) => {
+    const { requestId } = req.params;
+    const { userId } = req.body; // userId should be sent in the form data
+    if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+    }
+    if (!userId) {
+        return res.status(400).json({ error: 'userId is required' });
+    }
+
+    try {
+        const pool = await sql.connect(config);
+        const filePath = req.file.path.replace(/\\/g, '/');
+        await pool.request()
+            .input('requestId', sql.Int, requestId)
+            .input('fileName', sql.NVarChar, req.file.originalname)
+            .input('filePath', sql.NVarChar, filePath)
+            .input('uploadedBy', sql.Int, userId)
+            .query(`
+                INSERT INTO PDFDocuments 
+                (RequestId, FileName, FilePath, UploadedBy, UploadedAt)
+                VALUES (@requestId, @fileName, @filePath, @uploadedBy, GETDATE())
+            `);
+
+        // Add to NotificationList
+        await pool.request()
+            .input('creatorId', sql.Int, userId)
+            .input('requestId', sql.Int, requestId)
+            .input('remarks', sql.NVarChar, `User ${userId} uploaded a new attachment to request ${requestId}`)
+            .query(`
+                INSERT INTO NotificationList (CreatorId, RequestId, Remarks)
+                VALUES (@creatorId, @requestId, @remarks)
+            `);
+
+        res.json({ message: 'Attachment uploaded successfully' });
+    } catch (err) {
+        console.error('Error uploading attachment:', err);
+        res.status(500).json({ error: 'Failed to upload attachment' });
+    }
 });

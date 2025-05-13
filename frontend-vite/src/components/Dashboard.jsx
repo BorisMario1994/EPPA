@@ -30,7 +30,7 @@ const Dashboard = ({ user, onLogout }) => {
   const fetchNotifications = async () => {
     if (!user?.id) return;
     try {
-      const response = await fetch(`http://192.168.100.236:5000/api/notifications/${user.id}`);
+      const response = await fetch(`http://localhost:5000/api/notifications/${user.id}`);
       if (response.ok) {
         const data = await response.json();
         setNotifications(data || []);
@@ -51,7 +51,7 @@ const Dashboard = ({ user, onLogout }) => {
     const fetchCount = async (type) => {
       try {
         const response = await fetch(
-          `http://192.168.100.236:5000/api/requests/count/${type}/${user.id}`
+          `http://localhost:5000/api/requests/count/${type}/${user.id}`
         );
         if (response.ok) {
           const data = await response.json();
@@ -108,7 +108,7 @@ const Dashboard = ({ user, onLogout }) => {
   // Mark notification as read
   const handleMarkAsRead = async (notifId) => {
     try {
-      await fetch(`http://192.168.100.236:5000/api/notification/read/${notifId}`, {
+      await fetch(`http://localhost:5000/api/notification/read/${notifId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
