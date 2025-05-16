@@ -11,6 +11,10 @@ export default defineConfig({
       },
     },
   },  
+  server: {
+    host: '0.0.0.0', // allows access from any IP
+    port: 5173       // or any port you're using
+  }
 })
 
 

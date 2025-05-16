@@ -35,14 +35,15 @@ const Requests = ({ user, type }) => {
   const [searchDateTo, setSearchDateTo] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedSidebar, setSelectedSidebar] = useState(null);
+  const [picSearchTerm, setPicSearchTerm] = useState('');
 
   useEffect(() => {
     setLoading(true);   // Reset loading at the start
     setError(null);     // Reset error at the start
-    console.log(type, user.id);
+    console.log(type, user.username);
 
     const fetchRequests = async () => {
-      const url = `http://192.168.100.236:5000/api/requests/${type}/${user.id}`;
+      const url = `http://192.168.52.27:5000/api/requests/${type}/${user.username}`;
 
       try {
         const response = await fetch(url);
@@ -65,28 +66,28 @@ const Requests = ({ user, type }) => {
     };
 
     fetchRequests();
-  }, [user.id, type]);
+  }, [user.username, type]);
 
   useEffect(() => {
     let intervals = [];
 
-    if (user?.id) {
-      fetchCount('outgoing', user.id, setOutgoingCount);
-      fetchCount('assignrequest', user.id, setAssignRequestCount);
-      fetchCount('notyetapproved', user.id, setNotYetApprovedCount);
-      fetchCount('done', user.id, setDoneCount);
-      fetchCount('needtoapprove', user.id, setNeedToApproveCount);
-      fetchCount('todo', user.id, setTodoCount);
-      fetchCount('knownby', user.id, setKnownByCount);
+    if (user?.username) {
+      fetchCount('outgoing', user.username, setOutgoingCount);
+      fetchCount('assignrequest', user.username, setAssignRequestCount);
+      fetchCount('notyetapproved', user.username, setNotYetApprovedCount);
+      fetchCount('done', user.username, setDoneCount);
+      fetchCount('needtoapprove', user.username, setNeedToApproveCount);
+      fetchCount('todo', user.username, setTodoCount);
+      fetchCount('knownby', user.username, setKnownByCount);
 
       intervals = [
-        setInterval(() => fetchCount('outgoing', user.id, setOutgoingCount), 30000),
-        setInterval(() => fetchCount('assignrequest', user.id, setAssignRequestCount), 30000),
-        setInterval(() => fetchCount('notyetapproved', user.id, setNotYetApprovedCount), 30000),
-        setInterval(() => fetchCount('done', user.id, setDoneCount), 30000),
-        setInterval(() => fetchCount('needtoapprove', user.id, setNeedToApproveCount), 30000),
-        setInterval(() => fetchCount('todo', user.id, setTodoCount), 30000),
-        setInterval(() => fetchCount('knownby', user.id, setKnownByCount), 30000),
+        setInterval(() => fetchCount('outgoing', user.username, setOutgoingCount), 30000),
+        setInterval(() => fetchCount('assignrequest', user.username, setAssignRequestCount), 30000),
+        setInterval(() => fetchCount('notyetapproved', user.username, setNotYetApprovedCount), 30000),
+        setInterval(() => fetchCount('done', user.username, setDoneCount), 30000),
+        setInterval(() => fetchCount('needtoapprove', user.username, setNeedToApproveCount), 30000),
+        setInterval(() => fetchCount('todo', user.username, setTodoCount), 30000),
+        setInterval(() => fetchCount('knownby', user.username, setKnownByCount), 30000),
       ];
     }
 
@@ -96,7 +97,7 @@ const Requests = ({ user, type }) => {
   const fetchAttachments = async (requestId) => {
     try {
       console.log('Fetching attachments for request:', requestId);
-      const response = await fetch(`http://192.168.100.236:5000/api/requests/attachments/${requestId}`);
+      const response = await fetch(`http://192.168.52.27:5000/api/requests/attachments/${requestId}`);
       console.log('Response:', response);
       if (response.ok) {
         const data = await response.json();
@@ -133,7 +134,7 @@ const Requests = ({ user, type }) => {
   const fetchCount = async (type, userId, setter) => {
     try {
       const response = await fetch(
-        `http://192.168.100.236:5000/api/requests/count/${type}/${userId}`
+        `http://192.168.52.27:5000/api/requests/count/${type}/${userId}`
       );
       if (response.ok) {
         const data = await response.json();
@@ -149,7 +150,7 @@ const Requests = ({ user, type }) => {
     const userId = e.dataTransfer.getData('userId');
     if (!userId) return;
     try {
-      await fetch(`http://192.168.100.236:5000/api/requests/${requestId}/addUser`, {
+      await fetch(`http://192.168.52.27:5000/api/requests/${requestId}/addUser`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, role }),
@@ -158,7 +159,7 @@ const Requests = ({ user, type }) => {
       setLoading(true);
       setError(null);
       // Re-fetch requests
-      const response = await fetch(`http://192.168.100.236:5000/api/requests/${type}/${user.id}`);
+      const response = await fetch(`http://192.168.52.27:5000/api/requests/${type}/${user.username}`);
       if (response.ok) {
         const data = await response.json();
         setRequests(data);
@@ -173,7 +174,7 @@ const Requests = ({ user, type }) => {
 
   const fetchAllUsers = async () => {
     try {
-      const response = await fetch('http://192.168.100.236:5000/api/users');
+      const response = await fetch('http://192.168.52.27:5000/api/users');
       if (response.ok) {
         const data = await response.json();
         setUserList(data);
@@ -204,14 +205,14 @@ const Requests = ({ user, type }) => {
     try {
       // Add each selected user
       for (const userId of selectedUsers) {
-        await fetch(`http://192.168.100.236:5000/api/requests/${showUserPicker.requestId}/addUser`, {
+        await fetch(`http://192.168.52.27:5000/api/requests/${showUserPicker.requestId}/addUser`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId, role: showUserPicker.role }),
         });
       }
       // Refresh requests after update
-      const response = await fetch(`http://192.168.100.236:5000/api/requests/${type}/${user.id}`);
+      const response = await fetch(`http://192.168.52.27:5000/api/requests/${type}/${user.username}`);
       if (response.ok) {
         const data = await response.json();
         setRequests(data);
@@ -226,13 +227,13 @@ const Requests = ({ user, type }) => {
 
   const handleApprove = async (requestId) => {
     try {
-      await fetch(`http://192.168.100.236:5000/api/requests/${requestId}/approve`, {
+      await fetch(`http://192.168.52.27:5000/api/requests/${requestId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id }) 
+        body: JSON.stringify({ userId: user.username }) 
       });
       // Refresh requests after approval
-      const response = await fetch(`http://192.168.100.236:5000/api/requests/${type}/${user.id}`);
+      const response = await fetch(`http://192.168.52.27:5000/api/requests/${type}/${user.username}`);
       if (response.ok) {
         const data = await response.json();
         setRequests(data);
@@ -244,14 +245,14 @@ const Requests = ({ user, type }) => {
 
   const handleAssignPIC = async (requestId, userId) => {
     try {
-      await fetch(`http://192.168.100.236:5000/api/requests/${requestId}/assignpic`, {
+      await fetch(`http://192.168.52.27:5000/api/requests/${requestId}/assignpic`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId }),
       });
       setPicDropdown({ open: false, requestId: null });
       // Refresh requests after assignment
-      const response = await fetch(`http://192.168.100.236:5000/api/requests/${type}/${user.id}`);
+      const response = await fetch(`http://192.168.52.27:5000/api/requests/${type}/${user.username}`);
       if (response.ok) {
         const data = await response.json();
         setRequests(data);
@@ -269,7 +270,7 @@ const Requests = ({ user, type }) => {
     setTimelineError('');
     setTimelineActionType('');
     try {
-      const res = await fetch(`http://192.168.100.236:5000/api/timeline/${requestId}`);
+      const res = await fetch(`http://192.168.52.27:5000/api/timeline/${requestId}`);
       if (res.ok) {
         const data = await res.json();
         setTimelineHistory(data.sort((a, b) => b.TimelineId - a.TimelineId));
@@ -290,14 +291,14 @@ const Requests = ({ user, type }) => {
     setTimelineLoading(true);
     setTimelineError('');
     try {
-      const res = await fetch(`http://192.168.100.236:5000/api/timeline/${timelineModal.requestId}`, {
+      const res = await fetch(`http://192.168.52.27:5000/api/timeline/${timelineModal.requestId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           timeDate: timelineDate,
           remarks: timelineRemarks,
           actionType: timelineActionType,
-          userId: user.id
+          userId: user.username
         })
       });
       if (res.ok) {
@@ -352,6 +353,10 @@ const Requests = ({ user, type }) => {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchField, searchValue, searchDateFrom, searchDateTo, requests]);
+
+  const filteredUsers = userList.filter(u =>
+    u.USERNAME.toLowerCase().includes(picSearchTerm.toLowerCase())
+  );
 
   if (loading) {
     return <div className="loading">Loading requests...</div>;
@@ -448,7 +453,7 @@ const Requests = ({ user, type }) => {
                 <th>Status</th>
                 <th>Created Date</th>
                 <th>Action</th>
-                {(type === 'outgoing' || type === 'todo' || type === 'done') && <th>Timeline</th>}
+                {(type === 'outgoing' || type === 'todo' || type === 'done' || type === 'assignrequest') && <th>Timeline</th>}
                 {type === 'needtoapprove' && <th></th>}
                 {type === 'assignrequest' && <th>PIC</th>}
               </tr>
@@ -484,7 +489,7 @@ const Requests = ({ user, type }) => {
                         </button>
                       )}
                     </td>
-                    {(type === 'outgoing' || type === 'todo' || type === 'done') && (
+                    {(type === 'outgoing' || type === 'todo' || type === 'done' || type === 'assignrequest') && (
                       <td>
                         <button
                           className="view-details-btn"
@@ -508,6 +513,7 @@ const Requests = ({ user, type }) => {
                               setPicDropdown({ open: false, requestId: null });
                             } else {
                               setPicDropdown({ open: request.RequestId, requestId: request.RequestId });
+                              setPicSearchTerm('');
                               fetchAllUsers();
                             }
                           }}
@@ -516,18 +522,24 @@ const Requests = ({ user, type }) => {
                         </button>
                         {picDropdown.open === request.RequestId && (
                           <div className="pic-dropdown">
-                            {userList.map(u => (
-                              <div
-                                key={u.UserId}
-                                className="pic-dropdown-item"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleAssignPIC(request.RequestId, u.UserId);
-                                }}
-                              >
-                                {u.fullName}
-                              </div>
-                            ))}
+                            <input
+                              type="text"
+                              placeholder="Search users..."
+                              value={picSearchTerm}
+                              onChange={e => setPicSearchTerm(e.target.value)}
+                              style={{ marginBottom: "10px", width: "100%" }}
+                            />
+                            <div className="scrollable-users-list">
+                              {filteredUsers.map(u => (
+                                <div
+                                  key={u.USERNAME}
+                                  className="user-item"
+                                  onClick={() => handleAssignPIC(request.RequestId, u.USERNAME)}
+                                >
+                                  {u.USERNAME}
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
                       </td>
@@ -590,7 +602,7 @@ const Requests = ({ user, type }) => {
                                       <PDFViewer 
                                         documentId={file.DocumentId} 
                                         filePath={file.FilePath}
-                                        userId={user.id} 
+                                        userId={user.username} 
                                         requestId={request.RequestId}
                                         type={type}
                                       />
@@ -639,13 +651,13 @@ const Requests = ({ user, type }) => {
             <h3>Select Users to Add as {showUserPicker.role}</h3>
             <div className="user-list">
               {userList.map(u => (
-                <label key={u.UserId} className="user-list-item">
+                <label key={u.USERNAME} className="user-list-item">
                   <input
                     type="checkbox"
-                    checked={selectedUsers.includes(u.UserId)}
-                    onChange={() => handleUserCheckbox(u.UserId)}
+                    checked={selectedUsers.includes(u.USERNAME)}
+                    onChange={() => handleUserCheckbox(u.USERNAME)}
                   />
-                  {u.fullName}
+                  {u.USERNAME}
                 </label>
               ))}
             </div>

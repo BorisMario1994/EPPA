@@ -428,3 +428,10 @@
   margin-right: 12px;
   letter-spacing: 0.5px;
 }
+
+.scrollable-users-list {
+  max-height: 200px;   /* Adjust height as needed */
+  overflow-y: auto;
+  border: 1px solid #ddd; /* Optional: for visual separation */
+  background: #fff;       /* Optional: for dropdown look */
+}

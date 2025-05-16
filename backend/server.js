@@ -19,10 +19,10 @@ app.use('/uploads', express.static('uploads')); // Serve uploaded files
 
 // Database configuration
 const config = {
-    user: 'sa',
-    password: 'abc123',
-    server: 'DESKTOP-5FUBLO0',
-    database: 'master',
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    server: process.env.DB_SERVER,
+    database: process.env.DB_NAME,
     options: {
         encrypt: false,
         trustServerCertificate: true
@@ -73,32 +73,17 @@ app.use('/api/auth', authRoutes);
 app.get('/api/users', async (req, res) => {
     try {
         const pool = await sql.connect(config);
-        const result = await pool.request().query('SELECT UserId, fullName FROM UsersEPPA');
+        const result = await pool.request().query(`
+            SELECT USERNAME 
+            FROM HELPDESK_USER 
+            WHERE USERNAME LIKE '%-01%' 
+               OR USERNAME LIKE '%MISW%' 
+            ORDER BY USERNAME
+        `);
+        
         res.json(result.recordset);
     } catch (err) {
         res.status(500).json({ error: 'Failed to fetch users' });
-    }
-});
-
-// Login endpoint
-app.post('/api/login', async (req, res) => {
-    const { email, password } = req.body;
-    
-    try {
-        const pool = await sql.connect(config);
-        const result = await pool.request()
-            .input('email', sql.VarChar, email)
-            .input('password', sql.VarChar, password)
-            .query('SELECT UserId, fullName, email FROM UsersEPPA WHERE email = @email AND password = @password');
-        
-        if (result.recordset.length > 0) {
-            res.json(result.recordset[0]);
-        } else {
-            res.status(401).json({ error: 'Invalid credentials' });
-        }
-    } catch (err) {
-        console.error('Login error:', err);
-        res.status(500).json({ error: 'Login failed' });
     }
 });
 
@@ -111,11 +96,11 @@ app.get('/api/requests/attachments/:requestId', async (req, res) => {
         console.log('Request ID:', requestId);
         const pool = await sql.connect(config);
         const result = await pool.request()
-            .input('requestId', sql.Int, requestId)
+            .input('requestId', sql.VarChar, requestId)
             .query(`
-                SELECT d.DocumentId, d.FileName, d.FilePath, d.UploadedAt, u.fullName as UploadedByName,d.RequestId
+                SELECT d.DocumentId, d.FileName, d.FilePath, d.UploadedAt, u.username as UploadedByName,d.RequestId
                 FROM PDFDocuments d
-                JOIN UsersEPPA u ON d.UploadedBy = u.UserId
+                JOIN HELPDESK_USER u ON d.UploadedBy = u.username
                 WHERE d.RequestId = @requestId
                 ORDER BY d.UploadedAt DESC
             `);
@@ -191,29 +176,31 @@ app.get('/api/requests/:type/:userId', async (req, res) => {
     try {
         const pool = await sql.connect(config);
         const result = await pool.request()
-            .input('userId', sql.Int, userId)
+            .input('userId', sql.VarChar, userId)
             .query(`
                 
  SELECT r.*, 
-                       requester.fullName  as requesterName,
-                       concat(receiver.fullName ,' ',(select  N'✓' from RequestAccessUsers a where a.RequestId = r.requestid and Role = 'Receiver' and a.ApprovedAt is not null and a.UserId = r.ReceiverId) ) as receiverName,
+                       requester.username  as requesterName,
+                       concat(receiver.username ,' ',(select  N'✓' from RequestAccessUsers a where a.RequestId = r.requestid and Role = 'Receiver' and a.ApprovedAt is not null and a.UserId = r.ReceiverId) ) as receiverName,
                        (
-                           SELECT STRING_AGG(CONCAT(u.fullName,' ',(CASE WHEN rau2.ApprovedAt is not null then  N'✓' end)), ', ')
+                           SELECT STUFF((SELECT DISTINCT ',' + CONCAT(u.username,' ',(CASE WHEN rau2.ApprovedAt is not null then  N'✓' end))
                            FROM RequestAccessUsers rau2
-                           JOIN UsersEPPA u ON rau2.UserId = u.UserId
+                           JOIN HELPDESK_USER u ON rau2.UserId = u.username
                            WHERE rau2.RequestId = r.RequestId AND rau2.Role = 'ApprovedBy'
+                           FOR XML PATH('')),1,1,'')
                        ) as approvedByNames,
                        (
-                           SELECT STRING_AGG(CONCAT(u.fullName,' ',(CASE WHEN rau2.ApprovedAt is not null then  N'✓' end)), ', ')
+                           SELECT STUFF((SELECT DISTINCT ',' + CONCAT(u.username,' ',(CASE WHEN rau2.ApprovedAt is not null then  N'✓' end))
                            FROM RequestAccessUsers rau2
-                           JOIN UsersEPPA u ON rau2.UserId = u.UserId
+                           JOIN HELPDESK_USER u ON rau2.UserId = u.username
                            WHERE rau2.RequestId = r.RequestId AND rau2.Role = 'KnownBy'
+                           FOR XML PATH('')),1,1,'')
                        ) as knownByNames,
-                       PIC.fullName as PICName
+                       PIC.username as PICName
                 FROM ApplicationRequests r
-                JOIN UsersEPPA requester ON r.RequesterId = requester.UserId
-                JOIN UsersEPPA receiver ON r.ReceiverId = receiver.UserId
-                left join UsersEPPA PIC ON r.PIC = PIC.UserId
+                JOIN HELPDESK_USER requester ON r.RequesterId = requester.username
+                JOIN HELPDESK_USER receiver ON r.ReceiverId = receiver.username
+                left join HELPDESK_USER PIC ON r.PIC = PIC.username
                 ${joinClause}
                 ${whereClause ? 'WHERE ' + whereClause : ''}
                 ${orderBy}
@@ -233,14 +220,14 @@ app.get('/api/assigned-requests/:userId', async (req, res) => {
     try {
         const pool = await sql.connect(config);
         const result = await pool.request()
-            .input('userId', sql.Int, userId)
+            .input('userId', sql.VarChar, userId)
             .query(`
                 SELECT r.*, 
-                       requester.fullName as requesterName,
-                       receiver.fullName as receiverName
+                       requester.username as requesterName,
+                       receiver.username as receiverName
                 FROM ApplicationRequests r
-                JOIN UsersEPPA requester ON r.RequesterId = requester.UserId
-                JOIN UsersEPPA receiver ON r.ReceiverId = receiver.UserId
+                JOIN HELPDESK_USER requester ON r.RequesterId = requester.username
+                JOIN HELPDESK_USER receiver ON r.ReceiverId = receiver.username
                 WHERE r.PIC = @userId
                 ORDER BY r.CreatedAt DESC
             `);
@@ -290,8 +277,8 @@ app.post('/api/requests', upload.array('attachments'), async (req, res) => {
             .input('title', sql.VarChar, title)
             .input('purpose', sql.NVarChar, purpose)
             .input('expectedBenefits', sql.NVarChar, expectedBenefits)
-            .input('requesterId', sql.Int, requesterId)
-            .input('receiverId', sql.Int, receiverId)
+            .input('requesterId', sql.VarChar, requesterId)
+            .input('receiverId', sql.VarChar, receiverId)
             .input('status', sql.VarChar, 'Pending')
             .query(`
                 INSERT INTO ApplicationRequests 
@@ -306,7 +293,7 @@ app.post('/api/requests', upload.array('attachments'), async (req, res) => {
 
 
         await pool.request()
-        .input('creatorId', sql.Int, requesterId) // The user who triggered the action
+        .input('creatorId', sql.VarChar, requesterId) // The user who triggered the action
         .input('requestId', sql.Int, requestId)
         .input('remarks', sql.NVarChar, `User ${requesterId} created a new request ${requestId}`)
         .query(`
@@ -324,7 +311,7 @@ app.post('/api/requests', upload.array('attachments'), async (req, res) => {
                     .input('requestId', sql.Int, requestId)
                     .input('fileName', sql.NVarChar, file.originalname)
                     .input('filePath', sql.NVarChar, filePath) // Use the converted path
-                    .input('uploadedBy', sql.Int, requesterId)
+                    .input('uploadedBy', sql.VarChar, requesterId)
                     .query(`
                         INSERT INTO PDFDocuments 
                         (RequestId, FileName, FilePath, UploadedBy, UploadedAt)
@@ -338,13 +325,13 @@ app.post('/api/requests', upload.array('attachments'), async (req, res) => {
             for (const userId of approvedByArray) {
                 await pool.request()
                     .input('requestId', sql.Int, requestId)
-                    .input('userId', sql.Int, userId)
+                    .input('userId', sql.VarChar, userId)
                     .input('role', sql.NVarChar, 'ApprovedBy')
                     .query('INSERT INTO RequestAccessUsers (RequestId, UserId, Role) VALUES (@requestId, @userId, @role)');
 
                 // After successful insert into RequestAccessUsers
                 await pool.request()
-                    .input('creatorId', sql.Int, userId) // The user who triggered the action
+                    .input('creatorId', sql.VarChar, userId) // The user who triggered the action
                     .input('requestId', sql.Int, requestId)
                     .input('remarks', sql.NVarChar, `User ${userId} added as ApprovedBy to request ${requestId}`)
                     .query(`
@@ -359,13 +346,13 @@ app.post('/api/requests', upload.array('attachments'), async (req, res) => {
             for (const userId of knownByArray) {
                 await pool.request()
                     .input('requestId', sql.Int, requestId)
-                    .input('userId', sql.Int, userId)
+                    .input('userId', sql.VarChar, userId)
                     .input('role', sql.NVarChar, 'KnownBy')
                     .query('INSERT INTO RequestAccessUsers (RequestId, UserId, Role) VALUES (@requestId, @userId, @role)');
 
                 // After successful insert into RequestAccessUsers
                 await pool.request()
-                    .input('creatorId', sql.Int, userId) // The user who triggered the action
+                    .input('creatorId', sql.VarChar, userId) // The user who triggered the action
                     .input('requestId', sql.Int, requestId)
                     .input('remarks', sql.NVarChar, `User ${userId} added as KnownBy to request ${requestId}`)
                     .query(`
@@ -378,8 +365,8 @@ app.post('/api/requests', upload.array('attachments'), async (req, res) => {
         // Insert requester and receiver
         await pool.request()
             .input('requestId', sql.Int, requestId)
-            .input('requesterId', sql.Int, requesterId)
-            .input('receiverId', sql.Int, receiverId)
+            .input('requesterId', sql.VarChar, requesterId)
+            .input('receiverId', sql.VarChar, receiverId)
             .query(`
                 INSERT INTO RequestAccessUsers (RequestId, UserId, Role) 
                 VALUES (@requestId, @requesterId, 'Requester');
@@ -417,9 +404,9 @@ app.get('/api/documents/:documentId/annotations', async (req, res) => {
         const result = await pool.request()
             .input('documentId', sql.Int, documentId)
             .query(`
-                SELECT a.*, u.fullName as UserName
+                SELECT a.*, u.username as UserName
                 FROM PDFAnnotations a
-                JOIN UsersEPPA u ON a.UserId = u.UserId
+                JOIN HELPDESK_USER u ON a.UserId = u.username
                 WHERE a.DocumentId = @documentId
                 ORDER BY a.CreatedAt DESC
             `);
@@ -445,7 +432,7 @@ app.post('/api/documents/:documentId/annotations', async (req, res) => {
         if (annotationType === 'pointer') {
             const result = await pool.request()
                 .input('documentId', sql.Int, documentId)
-                .input('userId', sql.Int, userId)
+                .input('userId', sql.VarChar, userId)
                 .input('annotationType', sql.NVarChar, annotationType)
                 .input('content', sql.NVarChar, content)
                 .input('pageNumber', sql.Int, pageNumber)
@@ -464,7 +451,7 @@ app.post('/api/documents/:documentId/annotations', async (req, res) => {
             
         
         await pool.request()
-        .input('creatorId', sql.Int, userId) // The user who triggered the action
+        .input('creatorId', sql.VarChar, userId) // The user who triggered the action
         .input('requestId', sql.Int, requestId)
         .input('pageNumber', sql.Int, pageNumber)
         .input('remarks', sql.NVarChar, `User ${userId} added a new pointer on page ${pageNumber} to request ${requestId}`)
@@ -477,7 +464,7 @@ app.post('/api/documents/:documentId/annotations', async (req, res) => {
         } else if (annotationType === 'highlight' || annotationType === 'rectangle') {
             const result = await pool.request()
                 .input('documentId', sql.Int, documentId)
-                .input('userId', sql.Int, userId)
+                .input('userId', sql.VarChar, userId)
                 .input('annotationType', sql.NVarChar, annotationType)
                 .input('content', sql.NVarChar, content)
                 .input('pageNumber', sql.Int, pageNumber)
@@ -495,7 +482,7 @@ app.post('/api/documents/:documentId/annotations', async (req, res) => {
             annotationId = result.recordset[0].AnnotationId;
             
         await pool.request()
-        .input('creatorId', sql.Int, userId) // The user who triggered the action
+        .input('creatorId', sql.VarChar, userId) // The user who triggered the action
         .input('requestId', sql.Int, requestId)
         .input('pageNumber', sql.Int, pageNumber)
         .input('remarks', sql.NVarChar, `User ${userId} added a new highlight on page ${pageNumber} to request ${requestId}`)
@@ -511,7 +498,7 @@ app.post('/api/documents/:documentId/annotations', async (req, res) => {
         // Record in history
         await pool.request()
             .input('annotationId', sql.Int, annotationId)
-            .input('userId', sql.Int, userId)
+            .input('userId', sql.VarChar, userId)
             .input('action', sql.NVarChar, 'CREATE')
             .input('newContent', sql.NVarChar, content)
             .query(`
@@ -536,9 +523,9 @@ app.get('/api/annotations/:annotationId/history', async (req, res) => {
         const result = await pool.request()
             .input('annotationId', sql.Int, annotationId)
             .query(`
-                SELECT h.*, u.fullName as UserName
+                SELECT h.*, u.username as UserName
                 FROM AnnotationHistory h
-                JOIN UsersEPPA u ON h.UserId = u.UserId
+                JOIN HELPDESK_USER u ON h.UserId = u.username
                 WHERE h.AnnotationId = @annotationId
                 ORDER BY h.ChangedAt DESC
             `);
@@ -574,7 +561,7 @@ app.put('/api/annotations/:annotationId', async (req, res) => {
         // Record in history
         await pool.request()
             .input('annotationId', sql.Int, annotationId)
-            .input('userId', sql.Int, userId)
+            .input('userId', sql.VarChar, userId)
             .input('action', sql.NVarChar, 'UPDATE')
             .input('previousContent', sql.NVarChar, previousContent)
             .input('newContent', sql.NVarChar, content)
@@ -614,7 +601,7 @@ app.delete('/api/annotations/:annotationId', async (req, res) => {
         // Record in history
         await pool.request()
             .input('annotationId', sql.Int, annotationId)
-            .input('userId', sql.Int, userId)
+            .input('userId', sql.VarChar, userId)
             .input('action', sql.NVarChar, 'DELETE')
             .input('previousContent', sql.NVarChar, previousContent)
             .query(`
@@ -687,7 +674,7 @@ app.get('/api/requests/count/:type/:userId', async (req, res) => {
     try {
         const pool = await sql.connect(config);
         const result = await pool.request()
-            .input('userId', sql.Int, userId)
+            .input('userId', sql.VarChar, userId)
             .query(`
                 SELECT COUNT(*) as count
                 FROM ApplicationRequests r
@@ -716,7 +703,7 @@ app.post('/api/requests/:requestId/addUser', async (req, res) => {
     // Check if the user is already assigned to this request with this role
     const checkResult = await pool.request()
       .input('requestId', sql.Int, requestId)
-      .input('userId', sql.Int, userId)
+      .input('userId', sql.VarChar, userId)
       .input('role', sql.NVarChar(50), role)
       .query(`
         SELECT 1 FROM RequestAccessUsers
@@ -730,7 +717,7 @@ app.post('/api/requests/:requestId/addUser', async (req, res) => {
     // Insert the new user-role for this request
     await pool.request()
       .input('requestId', sql.Int, requestId)
-      .input('userId', sql.Int, userId)
+      .input('userId', sql.VarChar, userId)
       .input('role', sql.NVarChar(50), role)
       .query(`
         INSERT INTO RequestAccessUsers (RequestId, UserId, Role)
@@ -739,7 +726,7 @@ app.post('/api/requests/:requestId/addUser', async (req, res) => {
 
     // After successful insert into RequestAccessUsers
     await pool.request()
-        .input('creatorId', sql.Int, userId) // The user who triggered the action
+        .input('creatorId', sql.VarChar, userId) // The user who triggered the action
         .input('requestId', sql.Int, requestId)
         .input('remarks', sql.NVarChar, `User ${userId} added as ${role} to request ${requestId}`)
         .query(`
@@ -769,7 +756,7 @@ app.post('/api/requests/:requestId/approve', async (req, res) => {
     // Update ApprovedAt for the ApprovedBy or Receiver role for this user and request
     const result = await pool.request()
       .input('requestId', sql.Int, requestId)
-      .input('userId', sql.Int, userId)
+      .input('userId', sql.VarChar, userId)
       .query(`
         UPDATE RequestAccessUsers
         SET ApprovedAt = GETDATE()
@@ -777,7 +764,7 @@ app.post('/api/requests/:requestId/approve', async (req, res) => {
       `);
 
       await pool.request()
-        .input('creatorId', sql.Int, userId) // The user who triggered the action
+        .input('creatorId', sql.VarChar, userId) // The user who triggered the action
         .input('requestId', sql.Int, requestId)
         .input('remarks', sql.NVarChar, `User ${userId} approved request ${requestId}`)
         .query(`
@@ -807,7 +794,7 @@ app.post('/api/requests/:requestId/assignpic', async (req, res) => {
     // Update the PIC column in ApplicationRequests
     await pool.request()
       .input('requestId', sql.Int, requestId)
-      .input('userId', sql.Int, userId)
+      .input('userId', sql.VarChar, userId)
       .query(`
         UPDATE ApplicationRequests
         SET PIC = @userId
@@ -815,7 +802,7 @@ app.post('/api/requests/:requestId/assignpic', async (req, res) => {
       `);
 
       await pool.request()
-        .input('creatorId', sql.Int, userId) // The user who triggered the action
+        .input('creatorId', sql.VarChar, userId) // The user who triggered the action
         .input('requestId', sql.Int, requestId)
         .input('remarks', sql.NVarChar, `User ${userId} assigned as PIC to request ${requestId}`)
         .query(`
@@ -837,13 +824,13 @@ app.get('/api/notifications/:userId', async (req, res) => {
     const pool = await sql.connect(config);
     // Fetch notifications not marked as read by this user
     const result = await pool.request()
-      .input('userId', sql.Int, userId)
+      .input('userId', sql.VarChar, userId)
       .query(`
        
-        SELECT A.NotificationId, A.CreatorId, A.RequestId, A.Remarks, B.fullName as CreatorName,
+        SELECT A.NotificationId, A.CreatorId, A.RequestId, A.Remarks, B.username as CreatorName,
         C.UserId NotifReceiver
         FROM NotificationList A
-        JOIN UsersEPPA B ON A.CreatorId = B.UserId
+        JOIN HELPDESK_USER B ON A.CreatorId = B.username
         JOIN  RequestAccessUsers C ON C.RequestId = A.RequestId 
         LEFT JOIN Notificationread D ON D.NotificationId = A.NotificationId and D.ContributorId = C.UserId
         WHERE D.notificationId is null
@@ -861,21 +848,40 @@ app.get('/api/notifications/:userId', async (req, res) => {
 app.post('/api/notification/read/:notificationId', async (req, res) => {
   const { notificationId } = req.params;
 
-  const [notifIdPart1, notifIdPart2] = notificationId.split('-').map(Number);
+  const [idStr, ...restParts] = notificationId.split('-');
+  const notifIdPart1 = Number(idStr);
+  const notifIdPart2 = restParts.join('-'); // "MISW-04"
+
   try {
     const pool = await sql.connect(config);
-    await pool.request()
+    const request = pool.request();
+  
+    console.log("Parsed values:");
+    console.log("notifIdPart1:", notifIdPart1); // number
+    console.log("notifIdPart2:", notifIdPart2); // string
+  
+    // Log the actual query string (for debugging purposes only)
+    console.log("Executing SQL query:");
+    console.log(`
+      INSERT INTO NotificationRead (NotificationId, ContributorId, ReadAt)
+      VALUES (${notifIdPart1}, '${notifIdPart2}', GETDATE())
+    `);
+  
+    await request
       .input('notificationId', sql.Int, notifIdPart1)
-      .input('userId', sql.Int, notifIdPart2)
+      .input('userId', sql.VarChar, notifIdPart2)
       .query(`
         INSERT INTO NotificationRead (NotificationId, ContributorId, ReadAt)
         VALUES (@notificationId, @userId, GETDATE())
       `);
+  
     res.json({ success: true });
+  
   } catch (err) {
     console.error('Error marking notification as read:', err);
     res.status(500).json({ error: 'Failed to mark notification as read' });
   }
+  
 });
 
 app.get('/api/timeline/:requestId', async (req, res) => {
@@ -885,9 +891,9 @@ app.get('/api/timeline/:requestId', async (req, res) => {
     const result = await pool.request()
       .input('requestId', sql.Int, requestId)
       .query(`
-        SELECT t.*, u.fullName as UserName
+        SELECT t.*, u.username as UserName
         FROM RequestTimeline t
-        LEFT JOIN UsersEPPA u ON t.ActionBy = u.UserId
+        LEFT JOIN HELPDESK_USER u ON t.ActionBy = u.username
         WHERE t.RequestId = @requestId
         ORDER BY t.TimelineId DESC
       `);
@@ -927,7 +933,7 @@ app.post('/api/timeline/:requestId', async (req, res) => {
       .input('timeDate', sql.Date, timeDate)
       .input('actionType', sql.NVarChar(100), actionType)
       .input('remarks', sql.NVarChar(sql.MAX), remarks)
-      .input('userId', sql.Int, userId)
+      .input('userId', sql.VarChar, userId)
       .query(`
         INSERT INTO RequestTimeline (RequestId, TimeDate, ActionType, Remarks, ActionBy)
         VALUES (@requestId, @timeDate, @actionType, @remarks, @userId)
@@ -947,7 +953,7 @@ app.post('/api/timeline/:requestId', async (req, res) => {
 
     // Add to NotificationList
     await pool.request()
-      .input('creatorId', sql.Int, userId)
+      .input('creatorId', sql.VarChar, userId)
       .input('requestId', sql.Int, requestId)
       .input('actionType', sql.NVarChar(100), actionType)
       .input('remarks', sql.NVarChar, `User ${userId} added a new timeline (${actionType}) entry to request ${requestId}`)

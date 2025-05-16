@@ -77,7 +77,7 @@ router.post('/', authenticateToken, upload.array('files'), async (req, res) => {
                 title,
                 purpose,
                 expectedBenefits,
-                req.user.userId, // From auth middleware
+                req.user.username, // From auth middleware
                 receiverId,
                 initialDueDate,
                 'Pending',
@@ -92,7 +92,7 @@ router.post('/', authenticateToken, upload.array('files'), async (req, res) => {
                 requestId,
                 file.originalname,
                 file.path,
-                req.user.userId,
+                req.user.username,
             ]);
 
             const fileQuery = `
@@ -137,7 +137,7 @@ router.post('/', authenticateToken, upload.array('files'), async (req, res) => {
 router.get('/', authenticateToken, async (req, res) => {
     try {
         const pool = await sql.connect(config);
-        const userId = req.user.id;
+        const userId = req.user.username;
         const role = req.user.role;
 
         let query = `
@@ -151,11 +151,11 @@ router.get('/', authenticateToken, async (req, res) => {
                 r.InitialDueDate,
                 r.CurrentDueDate,
                 r.ReviewDueDate,
-                req.FullName as RequesterName,
-                rec.FullName as ReceiverName
+                req.username as RequesterName,
+                rec.username as ReceiverName
             FROM ApplicationRequests r
-            INNER JOIN UsersEPPA req ON r.RequesterId = req.UserId
-            INNER JOIN UsersEPPA rec ON r.ReceiverId = rec.UserId
+            INNER JOIN HELPDESK_USER req ON r.RequesterId = req.username
+            INNER JOIN HELPDESK_USER rec ON r.ReceiverId = rec.username
             WHERE 1=1
         `;
 
@@ -169,7 +169,7 @@ router.get('/', authenticateToken, async (req, res) => {
         query += ' ORDER BY r.CreatedAt DESC';
 
         const result = await pool.request()
-            .input('UserId', sql.Int, userId)
+            .input('UserId', sql.VarChar, userId)
             .query(query);
 
         res.json(result.recordset);
@@ -186,20 +186,20 @@ router.get('/:id', authenticateToken, async (req, res) => {
     try {
         const pool = await sql.connect(config);
         const requestId = req.params.id;
-        const userId = req.user.id;
+        const userId = req.user.username;
 
         // Get request details
         const requestResult = await pool.request()
             .input('RequestId', sql.Int, requestId)
-            .input('UserId', sql.Int, userId)
+            .input('UserId', sql.VarChar, userId)
             .query(`
                 SELECT 
                     r.*,
-                    req.FullName as RequesterName,
-                    rec.FullName as ReceiverName
+                    req.username as RequesterName,
+                    rec.username as ReceiverName
                 FROM ApplicationRequests r
-                INNER JOIN UsersEPPA req ON r.RequesterId = req.UserId
-                INNER JOIN UsersEPPA rec ON r.ReceiverId = rec.UserId
+                INNER JOIN HELPDESK_USER req ON r.RequesterId = req.username
+                INNER JOIN HELPDESK_USER rec ON r.ReceiverId = rec.username
                 WHERE r.RequestId = @RequestId
                 AND (r.RequesterId = @UserId OR r.ReceiverId = @UserId)
             `);

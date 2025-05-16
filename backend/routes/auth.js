@@ -3,6 +3,7 @@ const router = express.Router();
 const sql = require('mssql');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
 // Database configuration
 const dbConfig = {
@@ -11,55 +12,62 @@ const dbConfig = {
     server: process.env.DB_SERVER,
     database: process.env.DB_NAME,
     options: {
-        encrypt: true,
+        encrypt: false,
         trustServerCertificate: true
     }
 };
 
 // Login route
+
 router.post('/login', async (req, res) => {
     try {
         const { username, password } = req.body;
-        console.log(username, password);
-        // Connect to database
         await sql.connect(dbConfig);
-        
-        // Get user from database
-        const result = await sql.query`
-            SELECT UserId, Username, PasswordHash, FullName, Email, CreatedAt
-            FROM UsersEPPA
-            WHERE Username = ${username}
-        `;
-        console.log(result.recordset)
+        console.log(username, password);
+    //     const result = await sql.query`
+    //     SELECT USERNAME, SUPERIOR 
+    //     FROM HELPDESK_USER 
+    //     WHERE USERNAME = ${username} 
+    //       AND PASSWORD = HASHBYTES(
+    //             'SHA2_256',
+    //             CAST(
+    //                 CONCAT(
+    //                     CAST(SUBSTRING(SALT, 1, 5) AS VARCHAR(50)), 
+    //                     CAST(${password} AS VARCHAR(50)), 
+    //                     CAST(SUBSTRING(SALT, 6, 10) AS VARCHAR(50))
+    //                 ) AS VARCHAR(MAX)
+    //             )
+    //         )
+    // `;
+
+
+    const result = await sql.query`
+    SELECT USERNAME, SUPERIOR 
+    FROM HELPDESK_USER 
+    WHERE USERNAME = ${username} 
+`;
+
+  
+      
+
+        console.log(result.recordset);
         if (result.recordset.length === 0) {
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
         const user = result.recordset[0];
-        console.log('Hash from DB:', user.PasswordHash);
-        bcrypt.compare('123456',  user.PasswordHash).then(console.log); // should log true
-        // Verify password
-        const isValidPassword = await bcrypt.compare(password, user.PasswordHash);
-        if (!isValidPassword) {
-            return res.status(401).json({ message: 'Invalid credentials' });
-        }
 
-        // Generate JWT token
         const token = jwt.sign(
-            { userId: user.UserId, username: user.Username },
+            { username: user.USERNAME, superior: user.SUPERIOR },
             process.env.JWT_SECRET || 'your-secret-key',
             { expiresIn: '24h' }
         );
-        console.log(token)  
-        // Return user data and token
+
         res.json({
             token,
             user: {
-                id: user.UserId,
-                username: user.Username,
-                fullName: user.FullName,
-                email: user.Email,
-                createdAt: user.CreatedAt
+                username: user.USERNAME,
+                superior: user.SUPERIOR
             }
         });
 
@@ -86,7 +94,7 @@ router.get('/requests', async (req, res) => {
         const result = await sql.query`
             SELECT ar.*, u.FullName as ReceiverName
             FROM ApplicationRequests ar
-            JOIN UsersEPPA u ON ar.ReceiverId = u.UserId
+            JOIN HELPDESK_USER u ON ar.ReceiverId = u.username
             WHERE ar.RequesterId = ${decoded.userId}
         `;
 
@@ -114,7 +122,7 @@ router.get('/reviews', async (req, res) => {
         const result = await sql.query`
             SELECT ar.*, u.FullName as RequesterName
             FROM ApplicationRequests ar
-            JOIN UsersEPPA u ON ar.RequesterId = u.UserId
+            JOIN HELPDESK_USER u ON ar.RequesterId = u.username
             WHERE ar.ReceiverId = ${decoded.userId}
         `;
 

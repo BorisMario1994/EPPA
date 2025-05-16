@@ -28,9 +28,9 @@ const Dashboard = ({ user, onLogout }) => {
   const notificationRef = useRef(null);
 
   const fetchNotifications = async () => {
-    if (!user?.id) return;
+    if (!user?.username) return;
     try {
-      const response = await fetch(`http://192.168.100.236:5000/api/notifications/${user.id}`);
+      const response = await fetch(`http://192.168.52.27:5000/api/notifications/${user.username}`);
       if (response.ok) {
         const data = await response.json();
         setNotifications(data || []);
@@ -51,7 +51,7 @@ const Dashboard = ({ user, onLogout }) => {
     const fetchCount = async (type) => {
       try {
         const response = await fetch(
-          `http://192.168.100.236:5000/api/requests/count/${type}/${user.id}`
+          `http://192.168.52.27:5000/api/requests/count/${type}/${user.username}`
         );
         if (response.ok) {
           const data = await response.json();
@@ -65,7 +65,7 @@ const Dashboard = ({ user, onLogout }) => {
       }
     };
 
-    if (user?.id) {
+    if (user?.username) {
       requestTypes.forEach(type => {
         fetchCount(type);
         const intervalId = setInterval(() => fetchCount(type), 10000);
@@ -74,17 +74,17 @@ const Dashboard = ({ user, onLogout }) => {
     }
 
     return () => intervals.forEach(clearInterval);
-  }, [user?.id]);
+  }, [user?.username]);
 
   // Fetch notifications (list, not just count)
   useEffect(() => {
     let intervalId;
     fetchNotifications();
-    if (user?.id) {
+    if (user?.username) {
       intervalId = setInterval(fetchNotifications, 10000); // 30 seconds
     }
     return () => clearInterval(intervalId);
-  }, [user?.id]);
+  }, [user?.username]);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -108,7 +108,7 @@ const Dashboard = ({ user, onLogout }) => {
   // Mark notification as read
   const handleMarkAsRead = async (notifId) => {
     try {
-      await fetch(`http://192.168.100.236:5000/api/notification/read/${notifId}`, {
+        await fetch(`http://192.168.52.27:5000/api/notification/read/${notifId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -232,12 +232,12 @@ const Dashboard = ({ user, onLogout }) => {
         <div className="sidebar">
           <div className="user-profile">
             <div className="user-avatar">
-              {user?.fullName?.charAt(0) || 'U'}
+              {user?.username?.charAt(0) || 'U'}
             </div>
             <div className="user-details">
-              <h3>{user?.fullName || 'User'}</h3>
-              <p className="username">@{user.fullName || 'username'}</p>
-              <p className="email">{user.email || 'user@example.com'}</p>
+              <h3>{user?.username || 'User'}</h3>
+              <p className="username">@{user.username || 'username'}</p>
+            
             </div>
           </div>
           <nav className="sidebar-nav">

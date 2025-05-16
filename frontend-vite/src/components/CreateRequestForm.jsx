@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import './CreateRequestForm.css';
 
 const CreateRequestForm = ({ user }) => {
- // console.log(user);
+ console.log(user);  
   const [formData, setFormData] = useState({
     title: '',
     purpose: '',
@@ -18,16 +18,17 @@ const CreateRequestForm = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [fileError, setFileError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const fileInputRef = useRef(null);
 
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const response = await fetch('http://192.168.100.236:5000/api/users');
+        const response = await fetch('http://192.168.52.27:5000/api/users');
         if (response.ok) {
           const data = await response.json();
-          const filteredUsers = data.filter(u => u.UserId !== user.id);
+          const filteredUsers = data.filter(u => u.USERNAME !== user.username);
           setUsers(filteredUsers);  
 
         } else {
@@ -41,9 +42,11 @@ const CreateRequestForm = ({ user }) => {
       }
     };
     fetchUsers();
-  }, [user.id]);
+  }, [user.username]);
 
-
+  const filteredUsers = users.filter(u =>
+    u.USERNAME.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
@@ -93,8 +96,8 @@ const CreateRequestForm = ({ user }) => {
       // Check for duplicates
       const allUserIds = [
         formData.receiverId,
-        ...formData.approvedBy.map(u => u.UserId),
-        ...formData.knownBy.map(u => u.UserId)
+        ...formData.approvedBy.map(u => u.USERNAME),
+        ...formData.knownBy.map(u => u.USERNAME)
       ];
       
       const uniqueUserIds = new Set(allUserIds);
@@ -109,16 +112,16 @@ const CreateRequestForm = ({ user }) => {
       formDataToSend.append('title', formData.title);
       formDataToSend.append('purpose', formData.purpose);
       formDataToSend.append('expectedBenefits', formData.expectedBenefits);
-      formDataToSend.append('requesterId', user.id);
+      formDataToSend.append('requesterId', user.username);
       formDataToSend.append('receiverId', formData.receiverId);
       
       // Add arrays
       formData.approvedBy.forEach(user => {
-          formDataToSend.append('approvedBy[]', user.UserId);
+          formDataToSend.append('approvedBy[]', user.USERNAME);
       });
       
       formData.knownBy.forEach(user => {
-          formDataToSend.append('knownBy[]', user.UserId);
+          formDataToSend.append('knownBy[]', user.USERNAME);
       });
 
       // Add attachments
@@ -133,7 +136,7 @@ const CreateRequestForm = ({ user }) => {
           console.log(pair[0], pair[1]);
       }
 
-      const response = await fetch('http://192.168.100.236:5000/api/requests', {
+      const response = await fetch('http://192.168.52.27:5000/api/requests', {
           method: 'POST',
           body: formDataToSend
       });
@@ -165,8 +168,8 @@ const CreateRequestForm = ({ user }) => {
     if (name === 'receiverId') {
       const selectedUserId = parseInt(value);
       // Check if selected user is already in approvedBy or knownBy
-      const isApprovedBy = formData.approvedBy.some(u => u.UserId === selectedUserId);
-      const isKnownBy = formData.knownBy.some(u => u.UserId === selectedUserId);
+      const isApprovedBy = formData.approvedBy.some(u => u.USERNAME === selectedUserId);
+      const isKnownBy = formData.knownBy.some(u => u.USERNAME === selectedUserId);
       
       if (isApprovedBy || isKnownBy) {
         window.alert('This user is already assigned to another role');
@@ -193,16 +196,16 @@ const CreateRequestForm = ({ user }) => {
     if (!draggedUser) return;
 
     // Check if user is already in any role
-    const isReceiver = parseInt(formData.receiverId) === draggedUser.UserId;
-    const isApprovedBy = formData.approvedBy.some(u => u.UserId === draggedUser.UserId);
-    const isKnownBy = formData.knownBy.some(u => u.UserId === draggedUser.UserId);
+    const isReceiver = parseInt(formData.receiverId) === draggedUser.USERNAME;
+    const isApprovedBy = formData.approvedBy.some(u => u.USERNAME === draggedUser.USERNAME);
+    const isKnownBy = formData.knownBy.some(u => u.USERNAME === draggedUser.USERNAME);
 
     if (isReceiver || isApprovedBy || isKnownBy) {
       window.alert('This user is already assigned to another role');
       return;
     }
 
-    const isUserInBox = formData[targetBox].some(u => u.UserId === draggedUser.UserId);
+    const isUserInBox = formData[targetBox].some(u => u.USERNAME === draggedUser.USERNAME);
     if (!isUserInBox) {
       setFormData(prev => ({
         ...prev,
@@ -214,7 +217,7 @@ const CreateRequestForm = ({ user }) => {
   const removeUser = (userId, targetBox) => {
     setFormData(prev => ({
       ...prev,
-      [targetBox]: prev[targetBox].filter(u => u.UserId !== userId)
+      [targetBox]: prev[targetBox].filter(u => u.USERNAME !== userId)
     }));
   };
 
@@ -280,8 +283,8 @@ const CreateRequestForm = ({ user }) => {
           >
             <option value="">Select a receiver</option>
             {users.map(u => (
-              <option key={u.UserId} value={u.UserId}>
-                {u.fullName} 
+              <option key={u.USERNAME} value={u.USERNAME}>
+                {u.USERNAME} 
               </option>
             ))}
           </select>
@@ -325,15 +328,22 @@ const CreateRequestForm = ({ user }) => {
         <div className="drag-drop-section">
           <div className="users-list">
             <h3>Available Users</h3>
+            <input
+              type="text"
+              placeholder="Search users..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              style={{ marginBottom: "10px", width: "100%" }}
+            />
             <div className="users-container">
-              {users.map(u => (
+              {filteredUsers.map(u => (
                 <div
-                  key={u.UserId}
+                  key={u.USERNAME}
                   className="user-item"
                   draggable
                   onDragStart={() => handleDragStart(u)}
                 >
-                  {u.fullName} 
+                  {u.USERNAME}
                 </div>
               ))}
             </div>
@@ -348,11 +358,11 @@ const CreateRequestForm = ({ user }) => {
               <h3>Approved By</h3>
               <div className="selected-users">
                 {formData.approvedBy.map(u => (
-                  <div key={u.UserId} className="selected-user">
-                    {u.fullName} 
+                  <div key={u.USERNAME} className="selected-user">
+                    {u.USERNAME} 
                     <button
                       type="button"
-                      onClick={() => removeUser(u.UserId, 'approvedBy')}
+                      onClick={() => removeUser(u.USERNAME, 'approvedBy')}
                       className="remove-user"
                     >
                       ×
@@ -370,11 +380,11 @@ const CreateRequestForm = ({ user }) => {
               <h3>Known By</h3>
               <div className="selected-users">
                 {formData.knownBy.map(u => (
-                  <div key={user.UserId} className="selected-user">
-                    {u.fullName} 
+                    <div key={u.USERNAME} className="selected-user">
+                    {u.USERNAME} 
                     <button
                       type="button"
-                      onClick={() => removeUser(u.UserId, 'knownBy')}
+                      onClick={() => removeUser(u.USERNAME, 'knownBy')}
                       className="remove-user"
                     >
                       ×
