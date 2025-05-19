@@ -357,6 +357,35 @@ const Requests = ({ user, type }) => {
   const filteredUsers = userList.filter(u =>
     u.USERNAME.toLowerCase().includes(picSearchTerm.toLowerCase())
   );
+  const handleAddAttachment = async (e, requestId) => {
+    console.log("tes")
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.type !== 'application/pdf') {
+      alert('Only PDF files are allowed!');
+      return;
+    }
+    const formData = new FormData();
+    formData.append('attachment', file);
+    formData.append('userId', user.id);
+
+    try {
+      const res = await fetch(`http://localhost:5000/api/requests/${requestId}/attachments`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        alert('Upload failed: ' + (err.error || res.statusText));
+        return;
+      }
+      alert('Attachment uploaded!');
+      // Optionally, refresh the attachments for this request
+      fetchAttachments(requestId);
+    } catch (err) {
+      alert('Upload failed: ' + err.message);
+    }
+  };
 
   if (loading) {
     return <div className="loading">Loading requests...</div>;
@@ -593,6 +622,32 @@ const Requests = ({ user, type }) => {
                           </div>
                           <div className="attachments-section">
                             <h4>Attachments</h4>
+                            {(type === 'outgoing' || type === 'notyetapproved') && (
+                              <div style={{ marginBottom: 12, textAlign: 'left' }}>
+                                <input
+                                  type="file"
+                                  accept="application/pdf"
+                                  style={{ display: 'none' }}
+                                  id={`add-attachment-input-${request.RequestId}`}
+                                  onChange={e => handleAddAttachment(e, request.RequestId)}
+                                />
+                                <label
+                                  htmlFor={`add-attachment-input-${request.RequestId}`}
+                                  className="view-details-btn"
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    minWidth: 180,
+                                    fontWeight: 600,
+                                    cursor: 'pointer'
+                                  }}
+                                  title="Add PDF Attachment"
+                                >
+                                  Add Attachment
+                                </label>
+                              </div>
+                            )}
                             {attachments[request.RequestId]?.length > 0 ? (
                               <div className="attachments-list">
                                 {attachments[request.RequestId].map((file, index) => {
