@@ -16,7 +16,6 @@ const Requests = ({ user, type }) => {
   const [doneCount, setDoneCount] = useState(0);
   const [needToApproveCount, setNeedToApproveCount] = useState(0);
   const [todoCount, setTodoCount] = useState(0);
-  const [knownByCount, setKnownByCount] = useState(0);
   const [dragTarget, setDragTarget] = useState(null);
   const [showUserPicker, setShowUserPicker] = useState({ open: false, requestId: null, role: null });
   const [userList, setUserList] = useState([]);
@@ -78,7 +77,6 @@ const Requests = ({ user, type }) => {
       fetchCount('done', user.username, setDoneCount);
       fetchCount('needtoapprove', user.username, setNeedToApproveCount);
       fetchCount('todo', user.username, setTodoCount);
-      fetchCount('knownby', user.username, setKnownByCount);
 
       intervals = [
         setInterval(() => fetchCount('outgoing', user.username, setOutgoingCount), 30000),
@@ -87,7 +85,6 @@ const Requests = ({ user, type }) => {
         setInterval(() => fetchCount('done', user.username, setDoneCount), 30000),
         setInterval(() => fetchCount('needtoapprove', user.username, setNeedToApproveCount), 30000),
         setInterval(() => fetchCount('todo', user.username, setTodoCount), 30000),
-        setInterval(() => fetchCount('knownby', user.username, setKnownByCount), 30000),
       ];
     }
 
@@ -125,7 +122,6 @@ const Requests = ({ user, type }) => {
       case 'assignrequest': return 'Assign Requests';
       case 'notyetapproved': return 'Not Yet Approved Requests';
       case 'needtoapprove': return 'Need to Approve Requests';
-      case 'knownby': return 'Known By Requests';
       case 'TodoRequest': return 'To Do Requests';
       default: return 'Requests';
     }
@@ -415,7 +411,6 @@ const Requests = ({ user, type }) => {
           <option value="RequestId">RequestId</option>
           <option value="Requester">Requester</option>
           <option value="Title">Title</option>
-          <option value="Receiver">Receiver</option>
           <option value="Status">Status</option>
           <option value="CreatedDate">Created Date</option>
         </select>
@@ -475,10 +470,9 @@ const Requests = ({ user, type }) => {
           <table className="requests-table">
             <thead>
               <tr>
-                <th>RequestId</th>
+                <th>RequestNo</th>
                 <th>Requester</th>
                 <th>Title</th>
-                <th>Receiver</th>
                 <th>Status</th>
                 <th>Created Date</th>
                 <th>Action</th>
@@ -491,7 +485,7 @@ const Requests = ({ user, type }) => {
               {paginatedRequests.map(request => (
                 <React.Fragment key={request.RequestId}>
                   <tr className="request-row" onClick={() => toggleExpand(request.RequestId)}>
-                    <td>{request.RequestId}</td>
+                    <td>{request.RequestNo  }</td>
                     <td>{request.requesterName}</td>
                     <td>{request.Title}</td>
                     <td>{request.receiverName}</td>
@@ -576,102 +570,87 @@ const Requests = ({ user, type }) => {
                   </tr>
                   {expandedRequest === request.RequestId && (
                     <tr className="details-row">
-                      <td colSpan="5">
+                      <td colSpan="100">
                         <div className="request-details">
-                          <div className="details-main">
-                            <div className="detail-section">
-                              <h4>Purpose</h4>
-                              <p>{request.Purpose}</p>
-                            </div>
-                            <div className="detail-section">
-                              <h4>Expected Benefits</h4>
-                              <p>{request.ExpectedBenefits}</p>
-                            </div>
-                            <div className="detail-section approved-by">
-                              <h4>
-                                Approved By
-                                {type !== 'done' && (
-                                  <button
-                                    className="mini-add-btn"
-                                    title="Add Approved By"
-                                    onClick={() => openUserPicker(request.RequestId, 'ApprovedBy')}
-                                    style={{ marginLeft: 6, fontSize: '1em', padding: '0 6px', cursor: 'pointer' }}
-                                  >+</button>
-                                )}
-                              </h4>
-                              <p>{request.approvedByNames || 'None'}</p>
-                            </div>
-                            <div className="detail-section known-by">
-                              <h4>
-                                Known By
-                                {type !== 'done' && (
-                                  <button
-                                    className="mini-add-btn"
-                                    title="Add Known By"
-                                    onClick={() => openUserPicker(request.RequestId, 'KnownBy')}
-                                    style={{ marginLeft: 6, fontSize: '1em', padding: '0 6px', cursor: 'pointer' }}
-                                  >+</button>
-                                )}
-                              </h4>
-                              <p>{request.knownByNames || 'None'}</p>
-                            </div>
-                            <div className="detail-section pic-section">
-                              <h4>PIC</h4>
-                              <p>{request.PICName || 'None'}</p>
-                            </div>
+                          <div className="detail-section">
+                            <h4>Purpose</h4>
+                            <p>{requests.find(r => r.RequestId === request.RequestId)?.Purpose}</p>
                           </div>
-                          <div className="attachments-section">
-                            <h4>Attachments</h4>
-                            {(type === 'outgoing' || type === 'notyetapproved') && (
-                              <div style={{ marginBottom: 12, textAlign: 'left' }}>
-                                <input
-                                  type="file"
-                                  accept="application/pdf"
-                                  style={{ display: 'none' }}
-                                  id={`add-attachment-input-${request.RequestId}`}
-                                  onChange={e => handleAddAttachment(e, request.RequestId)}
-                                />
-                                <label
-                                  htmlFor={`add-attachment-input-${request.RequestId}`}
-                                  className="view-details-btn"
-                                  style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    minWidth: 180,
-                                    fontWeight: 600,
-                                    cursor: 'pointer'
-                                  }}
-                                  title="Add PDF Attachment"
-                                >
-                                  Add Attachment
-                                </label>
-                              </div>
-                            )}
-                            {attachments[request.RequestId]?.length > 0 ? (
-                              <div className="attachments-list">
-                                {attachments[request.RequestId].map((file, index) => {
-                                  console.log('File data:', file);
-                                  return (
-                                    <div key={index} className="attachment-item">
-                                      <PDFViewer 
-                                        documentId={file.DocumentId} 
-                                        filePath={file.FilePath}
-                                        userId={user.username} 
-                                        requestId={request.RequestId}
-                                        type={type}
-                                      />
-                                      <span className="upload-info">
-                                        Uploaded by {file.UploadedByName} on {new Date(file.UploadedAt).toLocaleDateString()}
-                                      </span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <p>No attachments</p>
-                            )}
+                          <div className="detail-section">
+                            <h4>Expected Benefits</h4>
+                            <p>{requests.find(r => r.RequestId === request.RequestId)?.ExpectedBenefits}</p>
                           </div>
+                          <div className="detail-section approved-by">
+                            <h4>
+                              Approved By
+                              {type !== 'done' && (
+                                <button
+                                  className="mini-add-btn"
+                                  title="Add Approved By"
+                                  onClick={() => openUserPicker(request.RequestId, 'ApprovedBy')}
+                                  style={{ marginLeft: 6, fontSize: '1em', padding: '0 6px', cursor: 'pointer' }}
+                                >+</button>
+                              )}
+                            </h4>
+                            <p>{requests.find(r => r.RequestId === request.RequestId)?.approvedByNames || 'None'}</p>
+                          </div>
+                          
+                          <div className="detail-section pic-section">
+                            <h4>PIC</h4>
+                            <p>{requests.find(r => r.RequestId === request.RequestId)?.PICName || 'None'}</p>
+                          </div>
+                        </div>
+                        <div className="attachments-section">
+                          <h4>Attachments</h4>
+                          {(type === 'outgoing' || type === 'notyetapproved') && (
+                            <div style={{ marginBottom: 12, textAlign: 'left' }}>
+                              <input
+                                type="file"
+                                accept="application/pdf"
+                                style={{ display: 'none' }}
+                                id={`add-attachment-input-${request.RequestId}`}
+                                onChange={e => handleAddAttachment(e, request.RequestId)}
+                              />
+                              <label
+                                htmlFor={`add-attachment-input-${request.RequestId}`}
+                                className="view-details-btn"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  minWidth: 180,
+                                  fontWeight: 600,
+                                  cursor: 'pointer'
+                                }}
+                                title="Add PDF Attachment"
+                              >
+                                Add Attachment
+                              </label>
+                            </div>
+                          )}
+                          {attachments[request.RequestId]?.length > 0 ? (
+                            <div className="attachments-list">
+                              {attachments[request.RequestId].map((file, index) => {
+                                console.log('File data:', file);
+                                return (
+                                  <div key={index} className="attachment-item">
+                                    <PDFViewer 
+                                      documentId={file.DocumentId} 
+                                      filePath={file.FilePath}
+                                      userId={user.username} 
+                                      requestId={request.RequestId}
+                                      type={type}
+                                    />
+                                    <span className="upload-info">
+                                      Uploaded by {file.UploadedByName} on {new Date(file.UploadedAt).toLocaleDateString()}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <p>No attachments</p>
+                          )}
                         </div>
                       </td>
                     </tr>

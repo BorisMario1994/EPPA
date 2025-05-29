@@ -282,19 +282,13 @@ const Dashboard = ({ user, onLogout }) => {
               className={`nav-item ${activeSection === 'outgoing' ? 'active' : ''}`}
               onClick={() => setActiveSection('outgoing')}
             >
-              Outgoing Requests ({requestCounts.outgoing})
+              On Progress Requests ({requestCounts.outgoing})
             </button>
             <button 
               className={`nav-item ${activeSection === 'AssignRequest' ? 'active' : ''}`}
               onClick={() => setActiveSection('assignrequest')}
             >
               Assign Requests ({requestCounts.assignrequest})
-            </button>
-            <button 
-              className={`nav-item ${activeSection === 'knownby' ? 'active' : ''}`}
-              onClick={() => setActiveSection('knownby')}
-            >
-              Known By Requests ({requestCounts.knownby})
             </button>
             <button 
               className={`nav-item ${activeSection === 'todo' ? 'active' : ''}`}

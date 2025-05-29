@@ -124,44 +124,27 @@ app.get('/api/requests/:type/:userId', async (req, res) => {
         case 'outgoing':
             whereClause = 
             `r.RequesterId = @userId 
-            and 1 <> ISNULL((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role = 'ApprovedBy' and A.ApprovedAt is  null  ),0) 
-            and 1 <> ISNULL((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role = 'Receiver' and A.ApprovedAt is  null  ),0)
+            and 1 <> ISNULL((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role IN ('CC','RECEIVER') and A.ApprovedAt is  null  ),0) 
             and r.closedAt IS NULL` ;
-            break;
-        case 'incoming':    
-            whereClause = 
-            `r.ReceiverId = @userId 
-            and 1 = ISNULL((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role = 'Receiver' and A.ApprovedAt is  null  ),0)
-            and r.closedAt IS NULL
-            `;
             break;
         case 'needtoapprove':
             whereClause = 
-            ` 1 = ISNULL((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role = 'ApprovedBy' and A.ApprovedAt is  null AND A.UserId = @userId   ),0) 
-			or 1 = ISNULL((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role = 'Receiver' and A.ApprovedAt is  null AND A.UserId = @userId  ),0)
+            ` 1 = ISNULL((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role IN ('CC','RECEIVER') and A.ApprovedAt is  null AND A.UserId = @userId and (select ApprovedAt from [dbo].[RequestAccessUsers] C WHERE C.RequestId = r.RequestId and C.LineNum = A.Linenum-1) is not null  ),0) 
             and r.closedAt IS NULL`;
            
             break;
             case 'assignrequest':
                 whereClause = 
                 `r.ReceiverId = @userId 
-                and 1 <> isnull((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role = 'Receiver' and A.ApprovedAt is null  ),0)
-                 and 1 <> ISNULL((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role = 'ApprovedBy' and A.ApprovedAt is null  ),0)
-                and r.closedAt IS NULL`;
+                and 1 <> isnull((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role IN ('CC','RECEIVER') and A.ApprovedAt is null  ),0)
+                   and r.closedAt IS NULL`;
             break;  
         case 'notyetapproved':
             whereClause = 
             `r.RequesterId = @userId 
-            and 1 = ISNULL((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId and A.Role = 'ApprovedBy' and ApprovedAt is null  ),0)
+            and 1 = ISNULL((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId and A.Role IN ('CC','RECEIVER') and ApprovedAt is null  ),0)
             and r.closedAt IS NULL
             `;
-            break;
-        case 'knownby':
-            joinClause = `
-                JOIN RequestAccessUsers rau ON rau.RequestId = r.RequestId
-                AND rau.UserId = @userId AND rau.Role = 'KnownBy'
-            `;
-            whereClause = 'r.ClosedAt IS NULL';
             break;
         case 'todo':
             whereClause = 'r.PIC = @userId  AND r.ClosedAt IS NULL';
@@ -179,27 +162,20 @@ app.get('/api/requests/:type/:userId', async (req, res) => {
             .input('userId', sql.VarChar, userId)
             .query(`
                 
+ 
  SELECT r.*, 
-                       requester.username  as requesterName,
-                       concat(receiver.username ,' ',(select  N'✓' from RequestAccessUsers a where a.RequestId = r.requestid and Role = 'Receiver' and a.ApprovedAt is not null and a.UserId = r.ReceiverId) ) as receiverName,
-                       (
-                           SELECT STUFF((SELECT DISTINCT ',' + CONCAT(u.username,' ',(CASE WHEN rau2.ApprovedAt is not null then  N'✓' end))
+                       requester.username  as requesterName, 
+					   (
+                           SELECT STUFF((SELECT  ',' + CONCAT(u.username,' ',(CASE WHEN rau2.ApprovedAt is not null then  N'✓' end))
                            FROM RequestAccessUsers rau2
                            JOIN HELPDESK_USER u ON rau2.UserId = u.username
-                           WHERE rau2.RequestId = r.RequestId AND rau2.Role = 'ApprovedBy'
+                           WHERE rau2.RequestId = r.RequestId AND rau2.Role IN ('CC','RECEIVER')
+						   ORDER BY RAU2.LINENUM
                            FOR XML PATH('')),1,1,'')
                        ) as approvedByNames,
-                       (
-                           SELECT STUFF((SELECT DISTINCT ',' + CONCAT(u.username,' ',(CASE WHEN rau2.ApprovedAt is not null then  N'✓' end))
-                           FROM RequestAccessUsers rau2
-                           JOIN HELPDESK_USER u ON rau2.UserId = u.username
-                           WHERE rau2.RequestId = r.RequestId AND rau2.Role = 'KnownBy'
-                           FOR XML PATH('')),1,1,'')
-                       ) as knownByNames,
                        PIC.username as PICName
                 FROM ApplicationRequests r
                 JOIN HELPDESK_USER requester ON r.RequesterId = requester.username
-                JOIN HELPDESK_USER receiver ON r.ReceiverId = receiver.username
                 left join HELPDESK_USER PIC ON r.PIC = PIC.username
                 ${joinClause}
                 ${whereClause ? 'WHERE ' + whereClause : ''}
@@ -316,14 +292,14 @@ app.post('/api/requests', upload.array('attachments'), async (req, res) => {
         const requestId = result.recordset[0].RequestId;
 
 
-        await pool.request()
+      /*   await pool.request()
         .input('creatorId', sql.VarChar, requesterId) // The user who triggered the action
         .input('requestId', sql.Int, requestId)
         .input('remarks', sql.NVarChar, `User ${requesterId} created a new request ${requestId}`)
         .query(`
             INSERT INTO NotificationList (CreatorId, RequestId, Remarks)    
             VALUES (@creatorId, @requestId, @remarks)
-            `);
+            `); */
 
 
         // Insert attachments
@@ -377,8 +353,8 @@ app.post('/api/requests', upload.array('attachments'), async (req, res) => {
             .input('requestId', sql.Int, requestId)
             .input('requesterId', sql.VarChar, requesterId)
             .query(`
-                INSERT INTO RequestAccessUsers (RequestId, LineNum, UserId, Role) 
-                VALUES (@requestId, 0, @requesterId, 'Requester');
+                INSERT INTO RequestAccessUsers (RequestId, LineNum, UserId, Role , ApprovedAt) 
+                VALUES (@requestId, 0, @requesterId, 'Requester',GETDATE());
             `);
 
         res.json({ message: 'Request created successfully', requestId });
@@ -633,23 +609,21 @@ app.get('/api/requests/count/:type/:userId', async (req, res) => {
         case 'outgoing':
             whereClause = 
             `r.RequesterId = @userId 
-              and 1 <> isnull((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role = 'ApprovedBy' and A.ApprovedAt is  null  ) ,0)
-            and 1 <> isnull((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role = 'Receiver' and A.ApprovedAt is  null  ),0)
+              and 1 <> isnull((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role IN ('CC','RECEIVER') and A.ApprovedAt is  null  ) ,0)
             and r.closedAt IS NULL`;
 
             break;
         case 'assignrequest':
             whereClause = 
             `r.ReceiverId = @userId 
-            and 1 <> isnull((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role = 'Receiver' and A.ApprovedAt is null  ),0)
-             and 1 <> ISNULL((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role = 'ApprovedBy' and A.ApprovedAt is null  ),0)
+            and 1 <> isnull((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role IN ('CC','RECEIVER') and A.ApprovedAt is null  ),0)
             and r.closedAt IS NULL`;
 
             break;
         case 'notyetapproved':
             whereClause = 
             `r.RequesterId = @userId 
-            and 1 = ISNULL((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId and A.Role = 'ApprovedBy' and ApprovedAt is null  ),0)
+            and 1 = ISNULL((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId and A.Role IN ('CC','RECEIVER') and ApprovedAt is null  ),0)
             and r.closedAt IS NULL
             `;
              break;
@@ -659,18 +633,13 @@ app.get('/api/requests/count/:type/:userId', async (req, res) => {
             break;
         case 'needtoapprove':
             whereClause = 
-            `(1 = ISNULL((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role = 'ApprovedBy' and A.ApprovedAt is  null AND A.UserId = @userId ),0) 
-			or 1 = ISNULL((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role = 'Receiver' and A.ApprovedAt is  null AND A.UserId = @userId  ),0))
+            `(1 = ISNULL((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role IN ('CC','RECEIVER') and A.ApprovedAt is  null AND A.UserId = @userId and (select ApprovedAt from [dbo].[RequestAccessUsers] C WHERE C.RequestId = r.RequestId and C.LineNum = A.Linenum-1) is not null ),0) )
             and r.closedAt IS NULL`;
             break;
         case 'todo':
             whereClause = 'r.PIC = @userId  AND r.ClosedAt IS NULL';
             break;
-        case 'knownby':
-            joinClause = `
-            JOIN RequestAccessUsers rau ON rau.RequestId = r.RequestId
-            AND rau.UserId = @userId AND rau.Role = 'KnownBy'
-        `;
+            ;
             whereClause = 'r.closedAt IS NULL';
             break;
         default:
