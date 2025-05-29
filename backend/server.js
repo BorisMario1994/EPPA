@@ -957,7 +957,7 @@ app.post('/api/timeline/:requestId', async (req, res) => {
 app.post('/api/requests/:requestId/attachments', upload.single('attachment'), async (req, res) => {
     const { requestId } = req.params;
     const { userId } = req.body; // userId should be sent in the form data
-    console.log(req.body);
+    
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
     }
@@ -968,23 +968,38 @@ app.post('/api/requests/:requestId/attachments', upload.single('attachment'), as
     try {
         const pool = await sql.connect(config);
         const filePath = req.file.path.replace(/\\/g, '/');
+
+        // First, insert the attachment details
         await pool.request()
             .input('requestId', sql.Int, requestId)
             .input('fileName', sql.NVarChar, req.file.originalname)
             .input('filePath', sql.NVarChar, filePath)
             .input('uploadedBy', sql.VarChar, userId)
             .query(`
-                INSERT INTO PDFDocuments 
+                INSERT INTO PDFDocuments
                 (RequestId, FileName, FilePath, UploadedBy, UploadedAt)
                 VALUES (@requestId, @fileName, @filePath, @uploadedBy, GETDATE())
             `);
 
-        // Add to NotificationList
+        // Now, fetch the RequestNo using the RequestId
+        const requestResult = await pool.request()
+            .input('requestId', sql.Int, requestId)
+            .query(`
+                SELECT RequestNo
+                FROM ApplicationRequests
+                WHERE RequestId = @requestId
+            `);
+
+        let requestNo = 'N/A'; // Default in case RequestNo is not found (shouldn't happen if RequestId is valid)
+        if (requestResult.recordset.length > 0) {
+            requestNo = requestResult.recordset[0].RequestNo;
+        }
+
+        // Add to NotificationList using the fetched requestNo
         await pool.request()
             .input('creatorId', sql.VarChar, userId)
             .input('requestId', sql.Int, requestId)
-            .input('requestNo', sql.NVarChar, requestNo)
-            .input('remarks', sql.NVarChar, `User ${userId} uploaded a new attachment to request ${requestNo}`)
+            .input('remarks', sql.NVarChar, `User ${userId} uploaded a new attachment to request ${requestNo}`) // Use the fetched requestNo
             .query(`
                 INSERT INTO NotificationList (CreatorId, RequestId, Remarks)
                 VALUES (@creatorId, @requestId, @remarks)
