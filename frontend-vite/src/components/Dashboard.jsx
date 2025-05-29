@@ -12,7 +12,6 @@ const requestTypes = [
   'done',
   'needtoapprove',
   'todo',
-  'knownby'
 ];
 
 const Dashboard = ({ user, onLogout }) => {
@@ -141,8 +140,6 @@ const Dashboard = ({ user, onLogout }) => {
         return <Requests user={user} type="notyetapproved" />;
       case 'assignrequest':
         return <Requests user={user} type="assignrequest" />;
-      case 'knownby':
-        return <Requests user={user} type="knownby" />;
       case 'todo':
         return <Requests user={user} type="todo" />;
       case 'done':

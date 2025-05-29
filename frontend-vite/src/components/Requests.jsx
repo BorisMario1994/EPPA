@@ -363,10 +363,10 @@ const Requests = ({ user, type }) => {
     }
     const formData = new FormData();
     formData.append('attachment', file);
-    formData.append('userId', user.id);
+    formData.append('userId', user.username);
 
     try {
-      const res = await fetch(`http://localhost:5000/api/requests/${requestId}/attachments`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/requests/${requestId}/attachments`, {
         method: 'POST',
         body: formData,
       });
@@ -572,85 +572,87 @@ const Requests = ({ user, type }) => {
                     <tr className="details-row">
                       <td colSpan="100">
                         <div className="request-details">
-                          <div className="detail-section">
-                            <h4>Purpose</h4>
-                            <p>{requests.find(r => r.RequestId === request.RequestId)?.Purpose}</p>
-                          </div>
-                          <div className="detail-section">
-                            <h4>Expected Benefits</h4>
-                            <p>{requests.find(r => r.RequestId === request.RequestId)?.ExpectedBenefits}</p>
-                          </div>
-                          <div className="detail-section approved-by">
-                            <h4>
-                              Approved By
-                              {type !== 'done' && (
-                                <button
-                                  className="mini-add-btn"
-                                  title="Add Approved By"
-                                  onClick={() => openUserPicker(request.RequestId, 'ApprovedBy')}
-                                  style={{ marginLeft: 6, fontSize: '1em', padding: '0 6px', cursor: 'pointer' }}
-                                >+</button>
-                              )}
-                            </h4>
-                            <p>{requests.find(r => r.RequestId === request.RequestId)?.approvedByNames || 'None'}</p>
-                          </div>
-                          
-                          <div className="detail-section pic-section">
-                            <h4>PIC</h4>
-                            <p>{requests.find(r => r.RequestId === request.RequestId)?.PICName || 'None'}</p>
-                          </div>
-                        </div>
-                        <div className="attachments-section">
-                          <h4>Attachments</h4>
-                          {(type === 'outgoing' || type === 'notyetapproved') && (
-                            <div style={{ marginBottom: 12, textAlign: 'left' }}>
-                              <input
-                                type="file"
-                                accept="application/pdf"
-                                style={{ display: 'none' }}
-                                id={`add-attachment-input-${request.RequestId}`}
-                                onChange={e => handleAddAttachment(e, request.RequestId)}
-                              />
-                              <label
-                                htmlFor={`add-attachment-input-${request.RequestId}`}
-                                className="view-details-btn"
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  minWidth: 180,
-                                  fontWeight: 600,
-                                  cursor: 'pointer'
-                                }}
-                                title="Add PDF Attachment"
-                              >
-                                Add Attachment
-                              </label>
+                          <div className="details-main">
+                            <div className="detail-section">
+                              <h4>Purpose</h4>
+                              <p>{requests.find(r => r.RequestId === request.RequestId)?.Purpose}</p>
                             </div>
-                          )}
-                          {attachments[request.RequestId]?.length > 0 ? (
-                            <div className="attachments-list">
-                              {attachments[request.RequestId].map((file, index) => {
-                                console.log('File data:', file);
-                                return (
-                                  <div key={index} className="attachment-item">
-                                    <PDFViewer 
-                                      documentId={file.DocumentId} 
-                                      filePath={file.FilePath}
-                                      userId={user.username} 
-                                      requestId={request.RequestId}
-                                      type={type}
-                                    />
-                                    <span className="upload-info">
-                                      Uploaded by {file.UploadedByName} on {new Date(file.UploadedAt).toLocaleDateString()}
-                                    </span>
-                                  </div>
-                                );
-                              })}
+                            <div className="detail-section">
+                              <h4>Expected Benefits</h4>
+                              <p>{requests.find(r => r.RequestId === request.RequestId)?.ExpectedBenefits}</p>
                             </div>
-                          ) : (
-                            <p>No attachments</p>
-                          )}
+                            <div className="detail-section approved-by">
+                              <h4>
+                                Approved By
+                                {type !== 'done' && (
+                                  <button
+                                    className="mini-add-btn"
+                                    title="Add Approved By"
+                                    onClick={() => openUserPicker(request.RequestId, 'ApprovedBy')}
+                                    style={{ marginLeft: 6, fontSize: '1em', padding: '0 6px', cursor: 'pointer' }}
+                                  >+</button>
+                                )}
+                              </h4>
+                              <p>{requests.find(r => r.RequestId === request.RequestId)?.approvedByNames || 'None'}</p>
+                            </div>
+                            
+                            <div className="detail-section pic-section">
+                              <h4>PIC</h4>
+                              <p>{requests.find(r => r.RequestId === request.RequestId)?.PICName || 'None'}</p>
+                            </div>
+                          </div>
+                          <div className="attachments-section">
+                            <h4>Attachments</h4>
+                            {(type === 'outgoing' || type === 'notyetapproved') && (
+                              <div style={{ marginBottom: 12, textAlign: 'left' }}>
+                                <input
+                                  type="file"
+                                  accept="application/pdf"
+                                  style={{ display: 'none' }}
+                                  id={`add-attachment-input-${request.RequestId}`}
+                                  onChange={e => handleAddAttachment(e, request.RequestId)}
+                                />
+                                <label
+                                  htmlFor={`add-attachment-input-${request.RequestId}`}
+                                  className="view-details-btn"
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    minWidth: 180,
+                                    fontWeight: 600,
+                                    cursor: 'pointer'
+                                  }}
+                                  title="Add PDF Attachment"
+                                >
+                                  Add Attachment
+                                </label>
+                              </div>
+                            )}
+                            {attachments[request.RequestId]?.length > 0 ? (
+                              <div className="attachments-list">
+                                {attachments[request.RequestId].map((file, index) => {
+                                  //console.log('File data:', file);
+                                  return (
+                                    <div key={index} className="attachment-item">
+                                      <PDFViewer 
+                                        documentId={file.DocumentId} 
+                                        filePath={file.FilePath}
+                                        userId={user.username} 
+                                        requestId={request.RequestId}
+                                        type={type}
+                                      />
+                                      <span className="upload-info">
+                                        Uploaded by {file.UploadedByName} on {new Date(file.UploadedAt).toLocaleDateString()}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <p>No attachments</p>
+                            )}
+                          </div>
                         </div>
                       </td>
                     </tr>

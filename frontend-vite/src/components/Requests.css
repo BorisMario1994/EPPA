@@ -122,10 +122,11 @@
 .detail-section {
   min-width: 200px;
   flex: 1 1 200px;
+  flex: 1;
+  min-width: 0;
 }
 
 .attachments-section {
-  margin-top: 1.5rem;
   color: #1a1a1a;
   width: 100%;
   box-sizing: border-box;

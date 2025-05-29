@@ -134,9 +134,9 @@ app.get('/api/requests/:type/:userId', async (req, res) => {
            
             break;
             case 'assignrequest':
+                joinClause = `left join requestaccessusers rau ON r.RequestId = rau.RequestId and rau.UserId = @userId and rau.Role IN ('RECEIVER')`;
                 whereClause = 
-                `r.ReceiverId = @userId 
-                and 1 <> isnull((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role IN ('CC','RECEIVER') and A.ApprovedAt is null  ),0)
+                `1 <> isnull((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role IN ('CC','RECEIVER') and A.ApprovedAt is null  ),0)
                    and r.closedAt IS NULL`;
             break;  
         case 'notyetapproved':
@@ -199,11 +199,9 @@ app.get('/api/assigned-requests/:userId', async (req, res) => {
             .input('userId', sql.VarChar, userId)
             .query(`
                 SELECT r.*, 
-                       requester.username as requesterName,
-                       receiver.username as receiverName
+                       requester.username as requesterName
                 FROM ApplicationRequests r
                 JOIN HELPDESK_USER requester ON r.RequesterId = requester.username
-                JOIN HELPDESK_USER receiver ON r.ReceiverId = receiver.username
                 WHERE r.PIC = @userId
                 ORDER BY r.CreatedAt DESC
             `);
@@ -238,7 +236,7 @@ app.post('/api/requests', upload.array('attachments'), async (req, res) => {
         //console.log('Request body:', req.body); // Debug log
         //console.log('Request files:', req.files); // Debug log
 
-        const { title, purpose, expectedBenefits, requesterId, cc, receiverId } = req.body;
+        const { title, purpose, expectedBenefits, requesterId, cc} = req.body;
         const files = req.files;
         
         // Convert approvedBy and knownBy to arrays if they're not already
@@ -614,9 +612,9 @@ app.get('/api/requests/count/:type/:userId', async (req, res) => {
 
             break;
         case 'assignrequest':
+            joinClause = `left join requestaccessusers rau ON r.RequestId = rau.RequestId and rau.UserId = @userId and rau.Role IN ('RECEIVER')`;
             whereClause = 
-            `r.ReceiverId = @userId 
-            and 1 <> isnull((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role IN ('CC','RECEIVER') and A.ApprovedAt is null  ),0)
+            `1 <> isnull((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role IN ('CC','RECEIVER') and A.ApprovedAt is null  ),0)
             and r.closedAt IS NULL`;
 
             break;
@@ -948,6 +946,7 @@ app.post('/api/timeline/:requestId', async (req, res) => {
 app.post('/api/requests/:requestId/attachments', upload.single('attachment'), async (req, res) => {
     const { requestId } = req.params;
     const { userId } = req.body; // userId should be sent in the form data
+    console.log(req.body);
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
     }
@@ -962,7 +961,7 @@ app.post('/api/requests/:requestId/attachments', upload.single('attachment'), as
             .input('requestId', sql.Int, requestId)
             .input('fileName', sql.NVarChar, req.file.originalname)
             .input('filePath', sql.NVarChar, filePath)
-            .input('uploadedBy', sql.Int, userId)
+            .input('uploadedBy', sql.VarChar, userId)
             .query(`
                 INSERT INTO PDFDocuments 
                 (RequestId, FileName, FilePath, UploadedBy, UploadedAt)
@@ -971,7 +970,7 @@ app.post('/api/requests/:requestId/attachments', upload.single('attachment'), as
 
         // Add to NotificationList
         await pool.request()
-            .input('creatorId', sql.Int, userId)
+            .input('creatorId', sql.VarChar, userId)
             .input('requestId', sql.Int, requestId)
             .input('remarks', sql.NVarChar, `User ${userId} uploaded a new attachment to request ${requestId}`)
             .query(`

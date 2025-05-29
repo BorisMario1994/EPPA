@@ -8,7 +8,10 @@ pdfjs.GlobalWorkerOptions.workerSrc = worker;
 
 
 const PDFViewer = ({ documentId, filePath, userId, requestId, type }) => {
-    console.log('PDFViewer props:', { documentId, filePath, userId ,requestId});
+    //console.log('PDFViewer props:', { documentId, filePath, userId ,requestId});
+
+    // Extract document name from filePath
+    const documentName = filePath ? filePath.split('/').pop().split('\\').pop() : 'Document';
 
     const [numPages, setNumPages] = useState(null);
     const [pageNumber, setPageNumber] = useState(1);
@@ -33,13 +36,13 @@ const PDFViewer = ({ documentId, filePath, userId, requestId, type }) => {
     const containerRef = useRef(null);
 
     useEffect(() => {
-        console.log('PDFViewer mounted with documentId:', documentId);
+        //console.log('PDFViewer mounted with documentId:', documentId);
         fetchAnnotations();
     }, [documentId]);
-    console.log(documentId);
+    //  console.log(documentId);
     const fetchAnnotations = async () => {
         try {
-            const response = await fetch(`http://192.168.52.27:5000/api/documents/${documentId}/annotations`);
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/documents/${documentId}/annotations`);
             if (response.ok) {
                 const data = await response.json();
                 setAnnotations(data);
@@ -51,7 +54,7 @@ const PDFViewer = ({ documentId, filePath, userId, requestId, type }) => {
 
     const fetchAnnotationHistory = async (annotationId) => {
         try {
-            const response = await fetch(`http://192.168.52.27:5000/api/annotations/${annotationId}/history`);
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/annotations/${annotationId}/history`);
             if (response.ok) {
                 const data = await response.json();
                 setAnnotationHistory(data);
@@ -103,10 +106,23 @@ const PDFViewer = ({ documentId, filePath, userId, requestId, type }) => {
     };
 
     const handleAddAnnotation = async () => {
+        // Check if the zoom is not 100%
+        if (scale !== 1) {
+            // Show a reminder pop-up
+            window.alert(
+                "Please set the zoom to 100% before saving annotations for accurate placement."
+            );
+            // Stop the function execution, do not save the annotation
+            return;
+        }
+
+        // If the zoom is 100% (scale === 1), proceed with the rest of your original logic
+        console.log("Zoom is 100%, proceeding with annotation save.");
+
         console.log(requestId);
         console.log(documentId);
         try {
-            const response = await fetch(`http://192.168.52.27:5000/api/documents/${documentId}/annotations`, {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/documents/${documentId}/annotations`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -143,6 +159,8 @@ const PDFViewer = ({ documentId, filePath, userId, requestId, type }) => {
   
     return (
         <div className="pdf-viewer">
+            <h3 className="document-title">{documentName}</h3>
+
             <div className="pdf-controls no-print">
             {type !== 'done' && (
                 <button
@@ -199,14 +217,14 @@ const PDFViewer = ({ documentId, filePath, userId, requestId, type }) => {
                 }}
             >
                 <Document
-                    file={`http://192.168.52.27:5000/${filePath.replace(/\\/g, '/')}`}
+                    file={`${import.meta.env.VITE_API_URL}/${filePath.replace(/\\/g, '/')}`}
                     onLoadSuccess={({ numPages }) => {
                         console.log('PDF loaded successfully, pages:', numPages);
                         setNumPages(numPages);
                     }}
                     onLoadError={(error) => {
                         console.error('Error loading PDF:', error);
-                        console.error('Attempted file path:', `http://192.168.52.27:5000/${filePath.replace(/\\/g, '/')}`);
+                        console.error('Attempted file path:', `${import.meta.env.VITE_API_URL}/${filePath.replace(/\\/g, '/')}`);
                     }}
                 >
                     {isPrinting

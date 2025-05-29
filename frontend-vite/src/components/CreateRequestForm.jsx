@@ -99,7 +99,7 @@ const CreateRequestForm = ({ user }) => {
         'MITC-01',
         'MGMG-01'
       ];
-
+      
       // Check for duplicates
       const uniqueUserIds = new Set(ccToSend);
       if (uniqueUserIds.size !== ccToSend.length) {
@@ -379,7 +379,7 @@ const CreateRequestForm = ({ user }) => {
                       }
                     }}
                   >
-                    {u.USERNAME}
+                    {u.USERNAME} 
                     <button
                       type="button"
                       onClick={() => removeUser(u.USERNAME, 'cc')}
@@ -392,10 +392,10 @@ const CreateRequestForm = ({ user }) => {
                 {/* Always show MITC-01 and MGMG-01 at the bottom */}
                 <div className="selected-user default-cc" key="MITC-01">
                   MITC-01
-                </div>
+              </div>
                 <div className="selected-user default-cc" key="MGMG-01">
                   MGMG-01
-                </div>
+                  </div>
               </div>
             </div>
           </div>
