@@ -93,13 +93,16 @@ const CreateRequestForm = ({ user }) => {
     }
 
     try {
-      // Check for duplicates
-      const allUserIds = [
-        ...formData.cc.map(u => u.USERNAME)
+      // Prepare the CC list to send (dynamic users + fixed users)
+      const ccToSend = [
+        ...formData.cc.map(u => u.USERNAME),
+        'MITC-01',
+        'MGMG-01'
       ];
-      
-      const uniqueUserIds = new Set(allUserIds);
-      if (uniqueUserIds.size !== allUserIds.length) {
+
+      // Check for duplicates
+      const uniqueUserIds = new Set(ccToSend);
+      if (uniqueUserIds.size !== ccToSend.length) {
         window.alert('Error: A user cannot be in multiple roles (CC)');
         return;
       }
@@ -113,8 +116,8 @@ const CreateRequestForm = ({ user }) => {
       formDataToSend.append('requesterId', user.username);
       
       // Add arrays
-      formData.cc.forEach(user => {
-          formDataToSend.append('cc[]', user.USERNAME);
+      ccToSend.forEach(userId => {
+        formDataToSend.append('cc[]', userId);
       });
 
       // Add attachments

@@ -54,7 +54,7 @@ const storage = multer.diskStorage({
 const upload = multer({ 
     storage: storage,
     fileFilter: (req, file, cb) => {
-        console.log('Processing file:', file); // Debug log
+        //console.log('Processing file:', file); // Debug log
         if (file.mimetype === 'application/pdf') {
             cb(null, true);
         } else {
@@ -259,21 +259,46 @@ app.listen(PORT, '0.0.0.0', () => {
 // Create request endpoint
 app.post('/api/requests', upload.array('attachments'), async (req, res) => {
     try {
-        console.log('Request body:', req.body); // Debug log
-        console.log('Request files:', req.files); // Debug log
+        //console.log('Request body:', req.body); // Debug log
+        //console.log('Request files:', req.files); // Debug log
 
-        const { title, purpose, expectedBenefits, requesterId, receiverId, approvedBy, knownBy } = req.body;
+        const { title, purpose, expectedBenefits, requesterId, cc, receiverId } = req.body;
         const files = req.files;
         
         // Convert approvedBy and knownBy to arrays if they're not already
-        const approvedByArray = Array.isArray(approvedBy) ? approvedBy : [approvedBy].filter(Boolean);
-        const knownByArray = Array.isArray(knownBy) ? knownBy : [knownBy].filter(Boolean);
-        
-      //  console.log('Approved By Array:', approvedByArray); // Debug log
+        const ccArray = Array.isArray(cc) ? cc : [cc].filter(Boolean);
+           //  console.log('Approved By Array:', approvedByArray); // Debug log
       //  console.log('Known By Array:', knownByArray); // Debug log
 
         const pool = await sql.connect(config);
+
+        // 1. Generate the new RequestNo
+        const requesterPrefix = requesterId.substring(0, 4);
+        const requestNoPrefix = `${requesterPrefix}-`;
+
+        // Get the latest RequestNo for this requester
+        const latestNoResult = await pool.request()
+            .input('prefix', sql.VarChar, requestNoPrefix + '%')
+            .query(`
+                SELECT TOP 1 RequestNo
+                FROM ApplicationRequests
+                WHERE RequestNo LIKE @prefix
+                ORDER BY RequestId DESC
+            `);
+
+        let newNumber = 1;
+        if (latestNoResult.recordset.length > 0) {
+            const latestRequestNo = latestNoResult.recordset[0].RequestNo;
+            const match = latestRequestNo.match(/-(\d+)$/);
+            if (match) {
+                newNumber = parseInt(match[1], 10) + 1;
+            }
+        }
+        const newRequestNo = `${requesterPrefix}-${String(newNumber).padStart(3, '0')}`;
+
+        // 2. Insert the new request
         const result = await pool.request()
+            .input('requestNo', sql.VarChar, newRequestNo)
             .input('title', sql.VarChar, title)
             .input('purpose', sql.NVarChar, purpose)
             .input('expectedBenefits', sql.NVarChar, expectedBenefits)
@@ -281,8 +306,8 @@ app.post('/api/requests', upload.array('attachments'), async (req, res) => {
             .input('status', sql.VarChar, 'Pending')
             .query(`
                 INSERT INTO ApplicationRequests 
-                (Title, Purpose, ExpectedBenefits, RequesterId, Status, CreatedAt, ReceivedDate)
-                VALUES (@title, @purpose, @expectedBenefits, @requesterId, @status, GETDATE(), GETDATE());
+                (RequestNo, Title, Purpose, ExpectedBenefits, RequesterId, Status, CreatedAt, ReceivedDate)
+                VALUES (@requestNo, @title, @purpose, @expectedBenefits, @requesterId, @status, GETDATE(), GETDATE());
                 SELECT SCOPE_IDENTITY() as RequestId;
             `);
      
@@ -319,20 +344,27 @@ app.post('/api/requests', upload.array('attachments'), async (req, res) => {
             }
         }
 
-        // Insert approvedBy users
-        if (approvedByArray.length > 0) {
-            for (const userId of approvedByArray) {
+        // Insert cc users
+        if (ccArray.length > 0) {
+            for (let i = 0; i < ccArray.length; i++) {
+                const userId = ccArray[i];
+                const lineNum = i + 1; // LineNum starts from 1
+                console.log(userId, lineNum);
                 await pool.request()
                     .input('requestId', sql.Int, requestId)
+                    .input('lineNum', sql.Int, lineNum)
                     .input('userId', sql.VarChar, userId)
-                    .input('role', sql.NVarChar, 'ApprovedBy')
-                    .query('INSERT INTO RequestAccessUsers (RequestId, UserId, Role) VALUES (@requestId, @userId, @role)');
+                    .input('role', sql.NVarChar, userId === 'MITC-01' ? 'Receiver' : 'CC')
+                    .query(`
+                        INSERT INTO RequestAccessUsers (RequestId, LineNum, UserId, Role)
+                        VALUES (@requestId, @lineNum, @userId, @role)
+                    `);
 
                 // After successful insert into RequestAccessUsers
                 await pool.request()
                     .input('creatorId', sql.VarChar, userId) // The user who triggered the action
                     .input('requestId', sql.Int, requestId)
-                    .input('remarks', sql.NVarChar, `User ${userId} added as ApprovedBy to request ${requestId}`)
+                    .input('remarks', sql.NVarChar, `User ${userId} added as ${userId === 'MITC-01' ? 'Receiver' : 'CC'} to request ${requestId}`)
                     .query(`
                         INSERT INTO NotificationList (CreatorId, RequestId, Remarks)
                         VALUES (@creatorId, @requestId, @remarks)
@@ -340,38 +372,13 @@ app.post('/api/requests', upload.array('attachments'), async (req, res) => {
             }
         }
 
-        // Insert knownBy users
-        if (knownByArray.length > 0) {
-            for (const userId of knownByArray) {
-                await pool.request()
-                    .input('requestId', sql.Int, requestId)
-                    .input('userId', sql.VarChar, userId)
-                    .input('role', sql.NVarChar, 'KnownBy')
-                    .query('INSERT INTO RequestAccessUsers (RequestId, UserId, Role) VALUES (@requestId, @userId, @role)');
-
-                // After successful insert into RequestAccessUsers
-                await pool.request()
-                    .input('creatorId', sql.VarChar, userId) // The user who triggered the action
-                    .input('requestId', sql.Int, requestId)
-                    .input('remarks', sql.NVarChar, `User ${userId} added as KnownBy to request ${requestId}`)
-                    .query(`
-                        INSERT INTO NotificationList (CreatorId, RequestId, Remarks)
-                        VALUES (@creatorId, @requestId, @remarks)
-                    `);
-            }
-        }
-
-        // Insert requester and receiver
+        // Insert requester 
         await pool.request()
             .input('requestId', sql.Int, requestId)
             .input('requesterId', sql.VarChar, requesterId)
-            .input('receiverId', sql.VarChar, receiverId)
             .query(`
-                INSERT INTO RequestAccessUsers (RequestId, UserId, Role) 
-                VALUES (@requestId, @requesterId, 'Requester');
-                
-                INSERT INTO RequestAccessUsers (RequestId, UserId, Role) 
-                VALUES (@requestId, @receiverId, 'Receiver');
+                INSERT INTO RequestAccessUsers (RequestId, LineNum, UserId, Role) 
+                VALUES (@requestId, 0, @requesterId, 'Requester');
             `);
 
         res.json({ message: 'Request created successfully', requestId });
@@ -855,16 +862,16 @@ app.post('/api/notification/read/:notificationId', async (req, res) => {
     const pool = await sql.connect(config);
     const request = pool.request();
   
-    console.log("Parsed values:");
-    console.log("notifIdPart1:", notifIdPart1); // number
-    console.log("notifIdPart2:", notifIdPart2); // string
+    //console.log("Parsed values:");
+    //console.log("notifIdPart1:", notifIdPart1); // number
+    //console.log("notifIdPart2:", notifIdPart2); // string
   
     // Log the actual query string (for debugging purposes only)
-    console.log("Executing SQL query:");
-    console.log(`
-      INSERT INTO NotificationRead (NotificationId, ContributorId, ReadAt)
-      VALUES (${notifIdPart1}, '${notifIdPart2}', GETDATE())
-    `);
+   // console.log("Executing SQL query:");
+    //console.log(`
+    //  INSERT INTO NotificationRead (NotificationId, ContributorId, ReadAt)
+    //  VALUES (${notifIdPart1}, '${notifIdPart2}', GETDATE())
+    // `);
   
     await request
       .input('notificationId', sql.Int, notifIdPart1)
