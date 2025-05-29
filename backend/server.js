@@ -323,7 +323,7 @@ app.post('/api/requests', upload.array('attachments'), async (req, res) => {
             for (let i = 0; i < ccArray.length; i++) {
                 const userId = ccArray[i];
                 const lineNum = i + 1; // LineNum starts from 1
-                console.log(userId, lineNum);
+               // console.log(userId, lineNum);
                 await pool.request()
                     .input('requestId', sql.Int, requestId)
                     .input('lineNum', sql.Int, lineNum)
@@ -334,11 +334,12 @@ app.post('/api/requests', upload.array('attachments'), async (req, res) => {
                         VALUES (@requestId, @lineNum, @userId, @role)
                     `);
 
+                    await pool.request()
                 // After successful insert into RequestAccessUsers
                 await pool.request()
                     .input('creatorId', sql.VarChar, userId) // The user who triggered the action
                     .input('requestId', sql.Int, requestId)
-                    .input('remarks', sql.NVarChar, `User ${userId} added as ${userId === 'MITC-01' ? 'Receiver' : 'CC'} to request ${requestId}`)
+                    .input('remarks', sql.NVarChar, `User ${userId} added as ${userId === 'MITC-01' ? 'Receiver' : 'CC'} to request ${newRequestNo}`)
                     .query(`
                         INSERT INTO NotificationList (CreatorId, RequestId, Remarks)
                         VALUES (@creatorId, @requestId, @remarks)
@@ -401,7 +402,7 @@ app.get('/api/documents/:documentId/annotations', async (req, res) => {
 // Add new annotation
 app.post('/api/documents/:documentId/annotations', async (req, res) => {
     const { documentId } = req.params;
-    const { userId, requestId, type, content, pageNumber, x, y, x1, y1, x2, y2 } = req.body;
+    const { userId, requestNo, requestId, type, content, pageNumber, x, y, x1, y1, x2, y2 } = req.body;
     const annotationType = type;
 
     try {
@@ -433,8 +434,9 @@ app.post('/api/documents/:documentId/annotations', async (req, res) => {
         await pool.request()
         .input('creatorId', sql.VarChar, userId) // The user who triggered the action
         .input('requestId', sql.Int, requestId)
+        .input('requestNo', sql.NVarChar, requestNo)
         .input('pageNumber', sql.Int, pageNumber)
-        .input('remarks', sql.NVarChar, `User ${userId} added a new pointer on page ${pageNumber} to request ${requestId}`)
+        .input('remarks', sql.NVarChar, `User ${userId} added a new pointer on page ${pageNumber} to request ${requestNo}`)
         .query(`
             INSERT INTO NotificationList (CreatorId, RequestId, Remarks)
             VALUES (@creatorId, @requestId, @remarks)
@@ -464,8 +466,9 @@ app.post('/api/documents/:documentId/annotations', async (req, res) => {
         await pool.request()
         .input('creatorId', sql.VarChar, userId) // The user who triggered the action
         .input('requestId', sql.Int, requestId)
+        .input('requestNo', sql.NVarChar, requestNo)
         .input('pageNumber', sql.Int, pageNumber)
-        .input('remarks', sql.NVarChar, `User ${userId} added a new highlight on page ${pageNumber} to request ${requestId}`)
+        .input('remarks', sql.NVarChar, `User ${userId} added a new highlight on page ${pageNumber} to request ${requestNo}`)
         .query(`
             INSERT INTO NotificationList (CreatorId, RequestId, Remarks)
             VALUES (@creatorId, @requestId, @remarks)
@@ -697,16 +700,24 @@ app.post('/api/requests/:requestId/addUser', async (req, res) => {
         VALUES (@requestId, @userId, @role)
       `);
 
+     
     // After successful insert into RequestAccessUsers
     await pool.request()
+       .input('requestId', sql.Int, requestId)
+        .query(`
+            select RequestNo from ApplicationRequests where RequestId = @requestId
+        `);
+
+        const requestNo = result.recordset[0].RequestNo;
+        console.log(requestNo);
+        await pool.request()
         .input('creatorId', sql.VarChar, userId) // The user who triggered the action
         .input('requestId', sql.Int, requestId)
-        .input('remarks', sql.NVarChar, `User ${userId} added as ${role} to request ${requestId}`)
+        .input('remarks', sql.NVarChar, `User ${userId} added as ${role} to request ${requestNo}`)
         .query(`
             INSERT INTO NotificationList (CreatorId, RequestId, Remarks)
             VALUES (@creatorId, @requestId, @remarks)
         `);
-
     res.json({ success: true });
   } catch (err) {
     console.error('Error adding user to request:', err);
@@ -972,7 +983,8 @@ app.post('/api/requests/:requestId/attachments', upload.single('attachment'), as
         await pool.request()
             .input('creatorId', sql.VarChar, userId)
             .input('requestId', sql.Int, requestId)
-            .input('remarks', sql.NVarChar, `User ${userId} uploaded a new attachment to request ${requestId}`)
+            .input('requestNo', sql.NVarChar, requestNo)
+            .input('remarks', sql.NVarChar, `User ${userId} uploaded a new attachment to request ${requestNo}`)
             .query(`
                 INSERT INTO NotificationList (CreatorId, RequestId, Remarks)
                 VALUES (@creatorId, @requestId, @remarks)
