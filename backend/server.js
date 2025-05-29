@@ -278,12 +278,11 @@ app.post('/api/requests', upload.array('attachments'), async (req, res) => {
             .input('purpose', sql.NVarChar, purpose)
             .input('expectedBenefits', sql.NVarChar, expectedBenefits)
             .input('requesterId', sql.VarChar, requesterId)
-            .input('receiverId', sql.VarChar, receiverId)
             .input('status', sql.VarChar, 'Pending')
             .query(`
                 INSERT INTO ApplicationRequests 
-                (Title, Purpose, ExpectedBenefits, RequesterId, ReceiverId, Status, CreatedAt, ReceivedDate)
-                VALUES (@title, @purpose, @expectedBenefits, @requesterId, @receiverId, @status, GETDATE(), GETDATE());
+                (Title, Purpose, ExpectedBenefits, RequesterId, Status, CreatedAt, ReceivedDate)
+                VALUES (@title, @purpose, @expectedBenefits, @requesterId, @status, GETDATE(), GETDATE());
                 SELECT SCOPE_IDENTITY() as RequestId;
             `);
      

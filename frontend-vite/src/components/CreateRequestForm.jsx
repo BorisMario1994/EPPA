@@ -7,9 +7,7 @@ const CreateRequestForm = ({ user }) => {
     title: '',
     purpose: '',
     expectedBenefits: '',
-    receiverId: '',
-    approvedBy: [],
-    knownBy: [],
+    cc: [],
     attachments: []
   });
 
@@ -19,6 +17,8 @@ const CreateRequestForm = ({ user }) => {
   const [error, setError] = useState(null);
   const [fileError, setFileError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [draggedCCIndex, setDraggedCCIndex] = useState(null);
+  const [dragSource, setDragSource] = useState(null);
 
   const fileInputRef = useRef(null);
 
@@ -86,23 +86,21 @@ const CreateRequestForm = ({ user }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Check if "Approved By" is empty
-    if (formData.approvedBy.length === 0) {
-      window.alert('Please assign at least one user to "Approved By".');
+    // Check if "CC" is empty
+    if (formData.cc.length === 0) {
+      window.alert('Please assign at least one user to "CC".');
       return;
     }
 
     try {
       // Check for duplicates
       const allUserIds = [
-        formData.receiverId,
-        ...formData.approvedBy.map(u => u.USERNAME),
-        ...formData.knownBy.map(u => u.USERNAME)
+        ...formData.cc.map(u => u.USERNAME)
       ];
       
       const uniqueUserIds = new Set(allUserIds);
       if (uniqueUserIds.size !== allUserIds.length) {
-        window.alert('Error: A user cannot be in multiple roles (Receiver, Approved By)');
+        window.alert('Error: A user cannot be in multiple roles (CC)');
         return;
       }
 
@@ -113,15 +111,10 @@ const CreateRequestForm = ({ user }) => {
       formDataToSend.append('purpose', formData.purpose);
       formDataToSend.append('expectedBenefits', formData.expectedBenefits);
       formDataToSend.append('requesterId', user.username);
-      formDataToSend.append('receiverId', formData.receiverId);
       
       // Add arrays
-      formData.approvedBy.forEach(user => {
-          formDataToSend.append('approvedBy[]', user.USERNAME);
-      });
-      
-      formData.knownBy.forEach(user => {
-          formDataToSend.append('knownBy[]', user.USERNAME);
+      formData.cc.forEach(user => {
+          formDataToSend.append('cc[]', user.USERNAME);
       });
 
       // Add attachments
@@ -147,9 +140,7 @@ const CreateRequestForm = ({ user }) => {
               title: '',
               purpose: '',
               expectedBenefits: '',
-              receiverId: '',
-              approvedBy: [],
-              knownBy: [],
+              cc: [],
               attachments: []
           });
       } else {
@@ -164,18 +155,6 @@ const CreateRequestForm = ({ user }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
-    if (name === 'receiverId') {
-      const selectedUserId = parseInt(value);
-      // Check if selected user is already in approvedBy or knownBy
-      const isApprovedBy = formData.approvedBy.some(u => u.USERNAME === selectedUserId);
-      const isKnownBy = formData.knownBy.some(u => u.USERNAME === selectedUserId);
-      
-      if (isApprovedBy || isKnownBy) {
-        window.alert('This user is already assigned to another role');
-        return;
-      }
-    }
     
     setFormData(prev => ({
       ...prev,
@@ -196,11 +175,9 @@ const CreateRequestForm = ({ user }) => {
     if (!draggedUser) return;
 
     // Check if user is already in any role
-    const isReceiver = parseInt(formData.receiverId) === draggedUser.USERNAME;
-    const isApprovedBy = formData.approvedBy.some(u => u.USERNAME === draggedUser.USERNAME);
-    const isKnownBy = formData.knownBy.some(u => u.USERNAME === draggedUser.USERNAME);
+    const isCC = formData.cc.some(u => u.USERNAME === draggedUser.USERNAME);
 
-    if (isReceiver || isApprovedBy || isKnownBy) {
+    if (isCC) {
       window.alert('This user is already assigned');
       return;
     }
@@ -215,6 +192,8 @@ const CreateRequestForm = ({ user }) => {
   };
 
   const removeUser = (userId, targetBox) => {
+    // Prevent removal of default users
+    if (['MITC-01', 'MGMG-01'].includes(userId)) return;
     setFormData(prev => ({
       ...prev,
       [targetBox]: prev[targetBox].filter(u => u.USERNAME !== userId)
@@ -273,25 +252,6 @@ const CreateRequestForm = ({ user }) => {
         </div>
 
         <div className="form-group">
-          <label htmlFor="receiverId">Receiver</label>
-          <select
-            id="receiverId"
-            name="receiverId"
-            value={formData.receiverId}
-            onChange={handleChange}
-            required
-          >
-            <option value="">Select a receiver</option>
-            {users.map(u => (
-              <option key={u.USERNAME} value={u.USERNAME}>
-                {u.USERNAME} 
-              </option>
-            ))}
-          </select>
-        </div>
-   
-
-        <div className="form-group">
           <label htmlFor="attachments">Attachments (PDF only)</label>
           <div className="file-upload-container">
             <input
@@ -300,7 +260,7 @@ const CreateRequestForm = ({ user }) => {
               name="attachments"
               onChange={handleFileChange}
               multiple
-              accept=".pdf"
+              accept="application/pdf"
               className="file-input"
               ref={fileInputRef}
             />
@@ -341,7 +301,10 @@ const CreateRequestForm = ({ user }) => {
                   key={u.USERNAME}
                   className="user-item"
                   draggable
-                  onDragStart={() => handleDragStart(u)}
+                  onDragStart={() => {
+                    handleDragStart(u);
+                    setDragSource('available');
+                  }}
                 >
                   {u.USERNAME}
                 </div>
@@ -353,25 +316,85 @@ const CreateRequestForm = ({ user }) => {
             <div
               className="approval-box"
               onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, 'approvedBy')}
+              onDrop={e => {
+                e.preventDefault();
+                if (dragSource === 'available' && draggedUser) {
+                  // Add user to CC if not already present and not a default
+                  const isCC = formData.cc.some(u => u.USERNAME === draggedUser.USERNAME);
+                  if (!isCC && !['MITC-01', 'MGMG-01'].includes(draggedUser.USERNAME)) {
+                    setFormData(prev => ({
+                      ...prev,
+                      cc: [draggedUser, ...prev.cc]
+                    }));
+                  }
+                  setDraggedUser(null);
+                  setDragSource(null);
+                } else if (dragSource === 'cc') {
+                  // If dropped outside any specific user, move to top
+                  if (draggedCCIndex !== null) {
+                    const newCC = [...formData.cc];
+                    const [moved] = newCC.splice(draggedCCIndex, 1);
+                    newCC.unshift(moved);
+                    setFormData(prev => ({
+                      ...prev,
+                      cc: newCC
+                    }));
+                    setDraggedCCIndex(null);
+                    setDragSource(null);
+                  }
+                }
+              }}
             >
-              <h3>Approved By</h3>
+              <h3>CC</h3>
               <div className="selected-users">
-                {formData.approvedBy.map(u => (
-                  <div key={u.USERNAME} className="selected-user">
-                    {u.USERNAME} 
+                {/* Render dynamic users */}
+                {formData.cc.map((u, idx) => (
+                  <div
+                    key={u.USERNAME}
+                    className="selected-user"
+                    draggable
+                    onDragStart={() => {
+                      setDraggedCCIndex(idx);
+                      setDragSource('cc');
+                    }}
+                    onDragOver={e => {
+                      e.preventDefault();
+                    }}
+                    onDrop={e => {
+                      e.preventDefault();
+                      if (dragSource === 'cc') {
+                        if (draggedCCIndex === null || draggedCCIndex === idx) return;
+                        const newCC = [...formData.cc];
+                        const [moved] = newCC.splice(draggedCCIndex, 1);
+                        newCC.splice(idx, 0, moved);
+                        setFormData(prev => ({
+                          ...prev,
+                          cc: newCC
+                        }));
+                        setDraggedCCIndex(null);
+                        setDragSource(null);
+                      }
+                    }}
+                  >
+                    {u.USERNAME}
                     <button
                       type="button"
-                      onClick={() => removeUser(u.USERNAME, 'approvedBy')}
+                      onClick={() => removeUser(u.USERNAME, 'cc')}
                       className="remove-user"
                     >
                       ×
                     </button>
                   </div>
                 ))}
+                {/* Always show MITC-01 and MGMG-01 at the bottom */}
+                <div className="selected-user default-cc" key="MITC-01">
+                  MITC-01
+                </div>
+                <div className="selected-user default-cc" key="MGMG-01">
+                  MGMG-01
+                </div>
               </div>
             </div>
-
           </div>
         </div>
 

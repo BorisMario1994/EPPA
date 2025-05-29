@@ -27,6 +27,17 @@ const Dashboard = ({ user, onLogout }) => {
   const [notifications, setNotifications] = useState([]);
   const notificationRef = useRef(null);
 
+  const [formData, setFormData] = useState({
+    title: '',
+    purpose: '',
+    expectedBenefits: '',
+    cc: [
+      { USERNAME: 'MITC-01' },
+      { USERNAME: 'MGMG-01' }
+    ],
+    attachments: []
+  });
+
   const fetchNotifications = async () => {
     if (!user?.username) return;
     try {
@@ -141,6 +152,14 @@ const Dashboard = ({ user, onLogout }) => {
       default:
         return <div className="content-section">Select a section</div>;
     }
+  };
+
+  const removeUser = (userId, targetBox) => {
+    if (['MITC-01', 'MGMG-01'].includes(userId)) return;
+    setFormData(prev => ({
+      ...prev,
+      [targetBox]: prev[targetBox].filter(u => u.USERNAME !== userId)
+    }));
   };
 
   return (
