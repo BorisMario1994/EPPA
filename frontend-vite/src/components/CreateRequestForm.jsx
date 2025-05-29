@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import './CreateRequestForm.css';
 
 const CreateRequestForm = ({ user }) => {
- console.log(user);  
+ //console.log(user);  
   const [formData, setFormData] = useState({
     title: '',
     purpose: '',
@@ -25,7 +25,7 @@ const CreateRequestForm = ({ user }) => {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const response = await fetch('http://192.168.52.27:5000/api/users');
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/users`);
         if (response.ok) {
           const data = await response.json();
           const filteredUsers = data.filter(u => u.USERNAME !== user.username);
@@ -102,7 +102,7 @@ const CreateRequestForm = ({ user }) => {
       
       const uniqueUserIds = new Set(allUserIds);
       if (uniqueUserIds.size !== allUserIds.length) {
-        window.alert('Error: A user cannot be in multiple roles (Receiver, Approved By, or Known By)');
+        window.alert('Error: A user cannot be in multiple roles (Receiver, Approved By)');
         return;
       }
 
@@ -127,7 +127,7 @@ const CreateRequestForm = ({ user }) => {
       // Add attachments
       console.log('Attachments before sending:', formData.attachments); // Debug log
       formData.attachments.forEach((file, index) => {
-          console.log(`Appending file ${index}:`, file); // Debug log
+          //console.log(`Appending file ${index}:`, file); // Debug log
           formDataToSend.append('attachments', file);
       });
 
@@ -136,7 +136,7 @@ const CreateRequestForm = ({ user }) => {
           console.log(pair[0], pair[1]);
       }
 
-      const response = await fetch('http://192.168.52.27:5000/api/requests', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/requests`, {
           method: 'POST',
           body: formDataToSend
       });
@@ -201,7 +201,7 @@ const CreateRequestForm = ({ user }) => {
     const isKnownBy = formData.knownBy.some(u => u.USERNAME === draggedUser.USERNAME);
 
     if (isReceiver || isApprovedBy || isKnownBy) {
-      window.alert('This user is already assigned to another role');
+      window.alert('This user is already assigned');
       return;
     }
 
@@ -372,27 +372,6 @@ const CreateRequestForm = ({ user }) => {
               </div>
             </div>
 
-            <div
-              className="approval-box"
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, 'knownBy')}
-            >
-              <h3>Known By</h3>
-              <div className="selected-users">
-                {formData.knownBy.map(u => (
-                    <div key={u.USERNAME} className="selected-user">
-                    {u.USERNAME} 
-                    <button
-                      type="button"
-                      onClick={() => removeUser(u.USERNAME, 'knownBy')}
-                      className="remove-user"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         </div>
 

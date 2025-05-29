@@ -30,7 +30,7 @@ const Dashboard = ({ user, onLogout }) => {
   const fetchNotifications = async () => {
     if (!user?.username) return;
     try {
-      const response = await fetch(`http://192.168.52.27:5000/api/notifications/${user.username}`);
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/notifications/${user.username}`);
       if (response.ok) {
         const data = await response.json();
         setNotifications(data || []);
@@ -49,9 +49,9 @@ const Dashboard = ({ user, onLogout }) => {
     let intervals = [];
 
     const fetchCount = async (type) => {
+      //console.log("woii ")
       try {
-        const response = await fetch(
-          `http://192.168.52.27:5000/api/requests/count/${type}/${user.username}`
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/requests/count/${type}/${user.username}`
         );
         if (response.ok) {
           const data = await response.json();
@@ -108,7 +108,7 @@ const Dashboard = ({ user, onLogout }) => {
   // Mark notification as read
   const handleMarkAsRead = async (notifId) => {
     try {
-        await fetch(`http://192.168.52.27:5000/api/notification/read/${notifId}`, {
+        await fetch(`${import.meta.env.VITE_API_URL}/api/notification/read/${notifId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
