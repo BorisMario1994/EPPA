@@ -7,9 +7,9 @@ import worker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 pdfjs.GlobalWorkerOptions.workerSrc = worker;
 
 
-const PDFViewer = ({ documentId, filePath, userId, requestId, type }) => {
-    //console.log('PDFViewer props:', { documentId, filePath, userId ,requestId});
-
+const PDFViewer = ({ documentId, filePath, userId, requestId, type, requestNo }) => {
+    //console.log('PDFViewer props:', { documentId, filePath, userId ,requestId,requestNo});
+    //console.log(requestNo)
     // Extract document name from filePath
     const documentName = filePath ? filePath.split('/').pop().split('\\').pop() : 'Document';
 
@@ -32,6 +32,7 @@ const PDFViewer = ({ documentId, filePath, userId, requestId, type }) => {
     const [showAnnotationContent, setShowAnnotationContent] = useState(true);
     const [isPrinting, setIsPrinting] = useState(false);
     const [rotation, setRotation] = useState(0);
+    const [showPreview, setShowPreview] = useState(true);
 
     const containerRef = useRef(null);
 
@@ -130,6 +131,7 @@ const PDFViewer = ({ documentId, filePath, userId, requestId, type }) => {
                 body: JSON.stringify({
                     userId,
                     requestId,
+                    requestNo,
                     annotationType: newAnnotation.type,
                     ...newAnnotation
                 }),
@@ -183,221 +185,226 @@ const PDFViewer = ({ documentId, filePath, userId, requestId, type }) => {
                 </button>
             )}
 
-                <button onClick={() => setPageNumber(prev => Math.max(1, prev - 1))} disabled={pageNumber <= 1}>
+                <button onClick={() => setPageNumber(prev => Math.max(1, prev - 1))} disabled={pageNumber <= 1 || !showPreview}>
                     Previous
                 </button>
                 <span>Page {pageNumber} of {numPages}</span>
-                <button onClick={() => setPageNumber(prev => Math.min(numPages, prev + 1))} disabled={pageNumber >= numPages}>
+                <button onClick={() => setPageNumber(prev => Math.min(numPages, prev + 1))} disabled={pageNumber >= numPages || !showPreview}>
                     Next
                 </button>
-                <button onClick={() => setScale(s => Math.max(0.5, s - 0.1))}>-</button>
+                <button onClick={() => setScale(s => Math.max(0.5, s - 0.1))} disabled={!showPreview}>-</button>
                 <span>Zoom: {(scale * 100).toFixed(0)}%</span>
-                <button onClick={() => setScale(s => Math.min(3, s + 0.1))}>+</button>
-                <button onClick={() => setRotation(r => (r + 90) % 360)}>Rotate</button>
+                <button onClick={() => setScale(s => Math.min(3, s + 0.1))} disabled={!showPreview}>+</button>
+                <button onClick={() => setRotation(r => (r + 90) % 360)} disabled={!showPreview}>Rotate</button>
                 <button onClick={() => setShowAnnotationContent(v => !v)}>
                     {showAnnotationContent ? 'Hide Notes' : 'Show Notes'}
+                </button>
+                <button onClick={() => setShowPreview(v => !v)}>
+                    {showPreview ? 'Hide Preview' : 'Show Preview'}
                 </button>
          
             </div>
 
-            <div
-                className="pdf-container"
-                ref={containerRef}
-                onMouseMove={e => {
-                    if (isAddingAnnotation && drawing && (newAnnotation.type === 'highlight')) {
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const x = ((e.clientX - rect.left) / rect.width) * 100;
-                        const y = ((e.clientY - rect.top) / rect.height) * 100;
-                        setNewAnnotation(prev => ({
-                            ...prev,
-                            x,
-                            y
-                        }));
-                    }
-                }}
-            >
-                <Document
-                    file={`${import.meta.env.VITE_API_URL}/${filePath.replace(/\\/g, '/')}`}
-                    onLoadSuccess={({ numPages }) => {
-                        console.log('PDF loaded successfully, pages:', numPages);
-                        setNumPages(numPages);
-                    }}
-                    onLoadError={(error) => {
-                        console.error('Error loading PDF:', error);
-                        console.error('Attempted file path:', `${import.meta.env.VITE_API_URL}/${filePath.replace(/\\/g, '/')}`);
+            {showPreview && (
+                <div
+                    className="pdf-container"
+                    ref={containerRef}
+                    onMouseMove={e => {
+                        if (isAddingAnnotation && drawing && (newAnnotation.type === 'highlight')) {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const x = ((e.clientX - rect.left) / rect.width) * 100;
+                            const y = ((e.clientY - rect.top) / rect.height) * 100;
+                            setNewAnnotation(prev => ({
+                                ...prev,
+                                x,
+                                y
+                            }));
+                        }
                     }}
                 >
-                    {isPrinting
-                        ? Array.from(new Array(numPages), (el, index) => (
-                            <Page
-                                key={`page_${index + 1}`}
-                                pageNumber={index + 1}
-                                scale={scale}
-                                rotate={rotation}
-                                renderAnnotationLayer={true}
-                                renderTextLayer={true}
-                            >
-                                {annotations
-                                    .filter(a => a.PageNumber === index + 1)
-                                    .map(annotation => {
-                                        if (annotation.AnnotationType === 'pointer') {
-                                            return (
-                                                <div
-                                                    key={annotation.AnnotationId}
-                                                    className="annotation-marker"
-                                                    style={{
-                                                        left: `${annotation.XCoordinate}%`,
-                                                        top: `${annotation.YCoordinate}%`
-                                                    }}
-                                                    onClick={() => handleAnnotationClick(annotation)}
-                                                >
-                                                    {showAnnotationContent && (
-                                                        <span className="annotation-meta">
-                                                            <span className="annotation-date">
-                                                                {annotation.CreatedAt && (
-                                                                    <span className="annotation-date">
-                                                                        {annotation.CreatedAt.replace('T', ' ').replace('Z', '').slice(0, 19)} • {annotation.UserName}
-                                                                    </span>
-                                                                )}
-                                                            </span>
-                                                            <span className="annotation-content">{annotation.Content}</span>
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            );
-                                        } else if (annotation.AnnotationType === 'highlight') {
-                                            const left = Math.min(annotation.X1, annotation.X2);
-                                            const top = Math.min(annotation.Y1, annotation.Y2);
-                                            const width = Math.abs(annotation.X2 - annotation.X1);
-                                            const height = Math.abs(annotation.Y2 - annotation.Y1);
-                                            return (
-                                                <div
-                                                    key={annotation.AnnotationId}
-                                                    className={`annotation-shape ${annotation.AnnotationType}`}
-                                                    style={{
-                                                        left: `${left}%`,
-                                                        top: `${top}%`,
-                                                        width: `${width}%`,
-                                                        height: `${height}%`
-                                                    }}
-                                                    onClick={() => handleAnnotationClick(annotation)}
-                                                >
-                                                    {showAnnotationContent && (
-                                                        <span className="annotation-meta">
-                                                            <span className="annotation-date">
-                                                                {annotation.CreatedAt && (
-                                                                    <span className="annotation-date">
-                                                                        {annotation.CreatedAt.replace('T', ' ').replace('Z', '').slice(0, 19)} • {annotation.UserName}
-                                                                    </span>
-                                                                )}
-                                                            </span>
-                                                            <span className="annotation-content">{annotation.Content}</span>
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            );
-                                        }
-                                        return null;
-                                    })}
-                            </Page>
-                        ))
-                        : (
-                            <Page
-                                pageNumber={pageNumber}
-                                scale={scale}
-                                rotate={rotation}
-                                onClick={handlePageClick}
-                                renderAnnotationLayer={true}
-                                renderTextLayer={true}
-                            />
-                        )
-                    }
-                    {!isPrinting && annotations
-                        .filter(a => a.PageNumber === pageNumber)
-                        .map(annotation => {
-                            if (annotation.AnnotationType === 'pointer') {
-                                return (
-                                    <div
-                                        key={annotation.AnnotationId}
-                                        className="annotation-marker"
-                                        style={{
-                                            left: `${annotation.XCoordinate}%`,
-                                            top: `${annotation.YCoordinate}%`
-                                        }}
-                                        onClick={() => handleAnnotationClick(annotation)}
-                                    >
-                                        {showAnnotationContent && (
-                                            <span className="annotation-meta">
-                                                <span className="annotation-date">
-                                                    {annotation.CreatedAt && (
-                                                        <span className="annotation-date">
-                                                            {annotation.CreatedAt.replace('T', ' ').replace('Z', '').slice(0, 19)} • {annotation.UserName}
-                                                        </span>
-                                                    )}
-                                                </span>
-                                                <span className="annotation-content">{annotation.Content}</span>
-                                            </span>
-                                        )}
-                                    </div>
-                                );
-                            } else if (annotation.AnnotationType === 'highlight') {
-                                const left = Math.min(annotation.X1, annotation.X2);
-                                const top = Math.min(annotation.Y1, annotation.Y2);
-                                const width = Math.abs(annotation.X2 - annotation.X1);
-                                const height = Math.abs(annotation.Y2 - annotation.Y1);
-                                return (
-                                    <div
-                                        key={annotation.AnnotationId}
-                                        className={`annotation-shape ${annotation.AnnotationType}`}
-                                        style={{
-                                            left: `${left}%`,
-                                            top: `${top}%`,
-                                            width: `${width}%`,
-                                            height: `${height}%`
-                                        }}
-                                        onClick={() => handleAnnotationClick(annotation)}
-                                    >
-                                        {showAnnotationContent && (
-                                            <span className="annotation-meta">
-                                                <span className="annotation-date">
-                                                    {annotation.CreatedAt && (
-                                                        <span className="annotation-date">
-                                                            {annotation.CreatedAt.replace('T', ' ').replace('Z', '').slice(0, 19)} • {annotation.UserName}
-                                                        </span>
-                                                    )}
-                                                </span>
-                                                <span className="annotation-content">{annotation.Content}</span>
-                                            </span>
-                                        )}
-                                    </div>
-                                );
-                            }
-                            return null;
-                        })}
-                </Document>
-
-                {isAddingAnnotation && newAnnotation.pageNumber === pageNumber && (
-                    <div
-                        className="new-annotation-marker"
-                        style={{
-                            left: `${newAnnotation.x}%`,
-                            top: `${newAnnotation.y}%`
+                    <Document
+                        file={`${import.meta.env.VITE_API_URL}/${filePath.replace(/\\/g, '/')}`}
+                        onLoadSuccess={({ numPages }) => {
+                            console.log('PDF loaded successfully, pages:', numPages);
+                            setNumPages(numPages);
                         }}
-                    />
-                )}
-
-                {isAddingAnnotation && drawing && startPoint && (
-                    <div
-                        className={`annotation-shape ${newAnnotation.type}`}
-                        style={{
-                            left: `${Math.min(startPoint.x, newAnnotation.x)}%`,
-                            top: `${Math.min(startPoint.y, newAnnotation.y)}%`,
-                            width: `${Math.abs(newAnnotation.x - startPoint.x)}%`,
-                            height: `${Math.abs(newAnnotation.y - startPoint.y)}%`
+                        onLoadError={(error) => {
+                            console.error('Error loading PDF:', error);
+                            console.error('Attempted file path:', `${import.meta.env.VITE_API_URL}/${filePath.replace(/\\/g, '/')}`);
                         }}
-                    />
-                )}
-            </div>
+                    >
+                        {isPrinting
+                            ? Array.from(new Array(numPages), (el, index) => (
+                                <Page
+                                    key={`page_${index + 1}`}
+                                    pageNumber={index + 1}
+                                    scale={scale}
+                                    rotate={rotation}
+                                    renderAnnotationLayer={true}
+                                    renderTextLayer={true}
+                                >
+                                    {annotations
+                                        .filter(a => a.PageNumber === index + 1)
+                                        .map(annotation => {
+                                            if (annotation.AnnotationType === 'pointer') {
+                                                return (
+                                                    <div
+                                                        key={annotation.AnnotationId}
+                                                        className="annotation-marker"
+                                                        style={{
+                                                            left: `${annotation.XCoordinate}%`,
+                                                            top: `${annotation.YCoordinate}%`
+                                                        }}
+                                                        onClick={() => handleAnnotationClick(annotation)}
+                                                    >
+                                                        {showAnnotationContent && (
+                                                            <span className="annotation-meta">
+                                                                <span className="annotation-date">
+                                                                    {annotation.CreatedAt && (
+                                                                        <span className="annotation-date">
+                                                                            {annotation.CreatedAt.replace('T', ' ').replace('Z', '').slice(0, 19)} • {annotation.UserName}
+                                                                        </span>
+                                                                    )}
+                                                                </span>
+                                                                <span className="annotation-content">{annotation.Content}</span>
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                );
+                                            } else if (annotation.AnnotationType === 'highlight') {
+                                                const left = Math.min(annotation.X1, annotation.X2);
+                                                const top = Math.min(annotation.Y1, annotation.Y2);
+                                                const width = Math.abs(annotation.X2 - annotation.X1);
+                                                const height = Math.abs(annotation.Y2 - annotation.Y1);
+                                                return (
+                                                    <div
+                                                        key={annotation.AnnotationId}
+                                                        className={`annotation-shape ${annotation.AnnotationType}`}
+                                                        style={{
+                                                            left: `${left}%`,
+                                                            top: `${top}%`,
+                                                            width: `${width}%`,
+                                                            height: `${height}%`
+                                                        }}
+                                                        onClick={() => handleAnnotationClick(annotation)}
+                                                    >
+                                                        {showAnnotationContent && (
+                                                            <span className="annotation-meta">
+                                                                <span className="annotation-date">
+                                                                    {annotation.CreatedAt && (
+                                                                        <span className="annotation-date">
+                                                                            {annotation.CreatedAt.replace('T', ' ').replace('Z', '').slice(0, 19)} • {annotation.UserName}
+                                                                        </span>
+                                                                    )}
+                                                                </span>
+                                                                <span className="annotation-content">{annotation.Content}</span>
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        })}
+                                </Page>
+                            ))
+                            : (
+                                <Page
+                                    pageNumber={pageNumber}
+                                    scale={scale}
+                                    rotate={rotation}
+                                    onClick={handlePageClick}
+                                    renderAnnotationLayer={true}
+                                    renderTextLayer={true}
+                                />
+                            )
+                        }
+                        {!isPrinting && annotations
+                            .filter(a => a.PageNumber === pageNumber)
+                            .map(annotation => {
+                                if (annotation.AnnotationType === 'pointer') {
+                                    return (
+                                        <div
+                                            key={annotation.AnnotationId}
+                                            className="annotation-marker"
+                                            style={{
+                                                left: `${annotation.XCoordinate}%`,
+                                                top: `${annotation.YCoordinate}%`
+                                            }}
+                                            onClick={() => handleAnnotationClick(annotation)}
+                                        >
+                                            {showAnnotationContent && (
+                                                <span className="annotation-meta">
+                                                    <span className="annotation-date">
+                                                        {annotation.CreatedAt && (
+                                                            <span className="annotation-date">
+                                                                {annotation.CreatedAt.replace('T', ' ').replace('Z', '').slice(0, 19)} • {annotation.UserName}
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                    <span className="annotation-content">{annotation.Content}</span>
+                                                </span>
+                                            )}
+                                        </div>
+                                    );
+                                } else if (annotation.AnnotationType === 'highlight') {
+                                    const left = Math.min(annotation.X1, annotation.X2);
+                                    const top = Math.min(annotation.Y1, annotation.Y2);
+                                    const width = Math.abs(annotation.X2 - annotation.X1);
+                                    const height = Math.abs(annotation.Y2 - annotation.Y1);
+                                    return (
+                                        <div
+                                            key={annotation.AnnotationId}
+                                            className={`annotation-shape ${annotation.AnnotationType}`}
+                                            style={{
+                                                left: `${left}%`,
+                                                top: `${top}%`,
+                                                width: `${width}%`,
+                                                height: `${height}%`
+                                            }}
+                                            onClick={() => handleAnnotationClick(annotation)}
+                                        >
+                                            {showAnnotationContent && (
+                                                <span className="annotation-meta">
+                                                    <span className="annotation-date">
+                                                        {annotation.CreatedAt && (
+                                                            <span className="annotation-date">
+                                                                {annotation.CreatedAt.replace('T', ' ').replace('Z', '').slice(0, 19)} • {annotation.UserName}
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                    <span className="annotation-content">{annotation.Content}</span>
+                                                </span>
+                                            )}
+                                        </div>
+                                    );
+                                }
+                                return null;
+                            })}
+                    </Document>
+
+                    {isAddingAnnotation && newAnnotation.pageNumber === pageNumber && (
+                        <div
+                            className="new-annotation-marker"
+                            style={{
+                                left: `${newAnnotation.x}%`,
+                                top: `${newAnnotation.y}%`
+                            }}
+                        />
+                    )}
+
+                    {isAddingAnnotation && drawing && startPoint && (
+                        <div
+                            className={`annotation-shape ${newAnnotation.type}`}
+                            style={{
+                                left: `${Math.min(startPoint.x, newAnnotation.x)}%`,
+                                top: `${Math.min(startPoint.y, newAnnotation.y)}%`,
+                                width: `${Math.abs(newAnnotation.x - startPoint.x)}%`,
+                                height: `${Math.abs(newAnnotation.y - startPoint.y)}%`
+                            }}
+                        />
+                    )}
+                </div>
+            )}
 
             {isAddingAnnotation && (
                 <div className="annotation-form">

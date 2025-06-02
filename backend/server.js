@@ -113,81 +113,6 @@ app.get('/api/requests/attachments/:requestId', async (req, res) => {
     }
 });
 
-// Get user's requests
-app.get('/api/requests/:type/:userId', async (req, res) => {
-    const { type, userId } = req.params;
-    let whereClause = '';
-    let joinClause = '';
-    let orderBy = 'ORDER BY r.RequestId DESC';
-   // console.log(type, userId);
-    switch (type) {
-        case 'outgoing':
-            whereClause = 
-            `r.RequesterId = @userId 
-            and 1 <> ISNULL((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role IN ('CC','RECEIVER') and A.ApprovedAt is  null  ),0) 
-            and r.closedAt IS NULL` ;
-            break;
-        case 'needtoapprove':
-            whereClause = 
-            ` 1 = ISNULL((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role IN ('CC','RECEIVER') and A.ApprovedAt is  null AND A.UserId = @userId and (select ApprovedAt from [dbo].[RequestAccessUsers] C WHERE C.RequestId = r.RequestId and C.LineNum = A.Linenum-1) is not null  ),0) 
-            and r.closedAt IS NULL`;
-           
-            break;
-            case 'assignrequest':
-                joinClause = `left join requestaccessusers rau ON r.RequestId = rau.RequestId and rau.UserId = @userId and rau.Role IN ('RECEIVER')`;
-                whereClause = 
-                `1 <> isnull((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role IN ('CC','RECEIVER') and A.ApprovedAt is null  ),0)
-                   and r.closedAt IS NULL`;
-            break;  
-        case 'notyetapproved':
-            whereClause = 
-            `r.RequesterId = @userId 
-            and 1 = ISNULL((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId and A.Role IN ('CC','RECEIVER') and ApprovedAt is null  ),0)
-            and r.closedAt IS NULL
-            `;
-            break;
-        case 'todo':
-            whereClause = 'r.PIC = @userId  AND r.ClosedAt IS NULL';
-            break;
-        case 'done':
-            whereClause = 'r.RequesterId = @userId AND r.ClosedAt IS NOT NULL';
-            break;
-        default:
-            whereClause = 'r.RequesterId = @userId';
-    }
-
-    try {
-        const pool = await sql.connect(config);
-        const result = await pool.request()
-            .input('userId', sql.VarChar, userId)
-            .query(`
-                
- 
- SELECT r.*, 
-                       requester.username  as requesterName, 
-					   (
-                           SELECT STUFF((SELECT  ',' + CONCAT(u.username,' ',(CASE WHEN rau2.ApprovedAt is not null then  N'✓' end))
-                           FROM RequestAccessUsers rau2
-                           JOIN HELPDESK_USER u ON rau2.UserId = u.username
-                           WHERE rau2.RequestId = r.RequestId AND rau2.Role IN ('CC','RECEIVER')
-						   ORDER BY RAU2.LINENUM
-                           FOR XML PATH('')),1,1,'')
-                       ) as approvedByNames,
-                       PIC.username as PICName
-                FROM ApplicationRequests r
-                JOIN HELPDESK_USER requester ON r.RequesterId = requester.username
-                left join HELPDESK_USER PIC ON r.PIC = PIC.username
-                ${joinClause}
-                ${whereClause ? 'WHERE ' + whereClause : ''}
-                ${orderBy}
-            `);
-        res.json(result.recordset);
-        //console.log(result.recordset);
-    } catch (err) {
-        console.error('Error fetching requests:', err);
-        res.status(500).json({ error: 'Failed to fetch requests' });
-    }
-});
 
 // Get assigned requests
 app.get('/api/assigned-requests/:userId', async (req, res) => {
@@ -228,7 +153,7 @@ const PORT = process.env.PORT || 5000;
 
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`Server is running on portsss ${PORT}`);
 }); 
 // Create request endpoint
 app.post('/api/requests', upload.array('attachments'), async (req, res) => {
@@ -605,7 +530,7 @@ app.get('/api/requests/count/:type/:userId', async (req, res) => {
     const { type, userId } = req.params;
     let whereClause = '';
     let joinClause = '';
-
+    //console.log("count")
     switch (type) {
         case 'outgoing':
             whereClause = 
@@ -615,7 +540,7 @@ app.get('/api/requests/count/:type/:userId', async (req, res) => {
 
             break;
         case 'assignrequest':
-            joinClause = `left join requestaccessusers rau ON r.RequestId = rau.RequestId and rau.UserId = @userId and rau.Role IN ('RECEIVER')`;
+            joinClause = `INNER join requestaccessusers rau ON r.RequestId = rau.RequestId and rau.UserId = @userId and rau.Role IN ('RECEIVER')`;
             whereClause = 
             `1 <> isnull((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role IN ('CC','RECEIVER') and A.ApprovedAt is null  ),0)
             and r.closedAt IS NULL`;
@@ -729,7 +654,7 @@ app.post('/api/requests/:requestId/addUser', async (req, res) => {
 app.post('/api/requests/:requestId/approve', async (req, res) => {
   const { requestId } = req.params;
   const { userId } = req.body; // Pass userId in the body
- // console.log(userId);
+  console.log(userId);
   if (!userId) {
     return res.status(400).json({ error: 'userId is required' });
   }
@@ -744,7 +669,7 @@ app.post('/api/requests/:requestId/approve', async (req, res) => {
       .query(`
         UPDATE RequestAccessUsers
         SET ApprovedAt = GETDATE()
-        WHERE RequestId = @requestId AND UserId = @userId AND (Role = 'ApprovedBy' OR Role = 'Receiver')
+        WHERE RequestId = @requestId AND UserId = @userId AND Role in ('CC','RECEIVER')
       `);
 
       await pool.request()
@@ -1009,5 +934,214 @@ app.post('/api/requests/:requestId/attachments', upload.single('attachment'), as
     } catch (err) {
         console.error('Error uploading attachment:', err);
         res.status(500).json({ error: 'Failed to upload attachment' });
+    }
+});
+
+// Get approved users (CC and Receiver) for a specific request
+app.get('/api/requests/:requestId/approveduser', async (req, res) => {
+    const { requestId } = req.params;
+console.log("tes")
+    try {
+        const query = `
+            SELECT u.USERNAME
+            FROM RequestAccessUsers rau
+            JOIN HELPDESK_USER u ON rau.UserId = u.username
+            WHERE rau.RequestId = @requestId AND rau.Role IN ('CC', 'RECEIVER')
+            ORDER BY rau.LineNum
+        `;
+
+        // console.log('Executing query:', query);
+        // console.log('With parameters: { requestId: ', requestId, '}');
+
+        const pool = await sql.connect(config);
+        const result = await pool.request()
+            .input('requestId', sql.Int, requestId)
+            .query(query);
+
+        console.log('Query result:', result.recordset);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('Error fetching approved users:', err);
+        res.status(500).json({ error: 'Failed to fetch approved users' });
+    }
+});
+
+// Add this new endpoint in server.js
+app.post('/api/requests/:requestId/updateUsersRole', async (req, res) => {
+    const { requestId } = req.params;
+    const { role, userIds, originalOrder } = req.body;
+    console.log(req.body)
+    if (!userIds || !Array.isArray(userIds)) {
+        return res.status(400).json({ error: 'userIds array is required' });
+    }
+
+    try {
+        const pool = await sql.connect(config);
+
+        // Start a transaction
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
+
+        try {
+            // 1. First, get the current LineNum for each user
+            const currentLineNums = await transaction.request()
+                .input('requestId', sql.Int, requestId)
+                .query(`
+                    SELECT UserId, LineNum, ApprovedAt
+                    FROM RequestAccessUsers
+                    WHERE RequestId = @requestId 
+                    AND Role IN ('CC', 'RECEIVER')
+                    ORDER BY LineNum
+                `);
+
+            // 2. Create a map of current line numbers
+            const currentLineNumMap = new Map(
+                currentLineNums.recordset.map(record => [record.UserId, { lineNum: record.LineNum, approvedAt: record.ApprovedAt }])
+            );
+            console.log(currentLineNumMap)
+            // 3. Delete all existing CC and RECEIVER entries for this request
+            await transaction.request()
+                .input('requestId', sql.Int, requestId)
+                .query(`
+                    DELETE FROM RequestAccessUsers 
+                    WHERE RequestId = @requestId 
+                    AND Role IN ('CC', 'RECEIVER')
+                `);
+
+            // 4. Insert new entries with updated line numbers
+            for (let i = 0; i < userIds.length; i++) {
+                const userId = userIds[i];
+                const newLineNum = i + 1;
+                const currentUserData = currentLineNumMap.get(UserId);
+                console.log(currentUserData)
+                // Determine if this user's order has changed
+                const originalIndex = originalOrder.indexOf(userId);
+                const isNewUser = originalIndex === -1;
+                const hasOrderChanged = !isNewUser && originalIndex !== i;
+                console.log(originalIndex)
+                console.log(isNewUser)
+                console.log(hasOrderChanged)
+                console.log(userIds.slice(0, i).some((uid, idx) => originalOrder.indexOf(uid) !== idx))
+                // Set ApprovedAt to null if:
+                // 1. User is new
+                // 2. User's order has changed
+                // 3. User is after a position where order changed
+                const shouldResetApproval = isNewUser || hasOrderChanged || 
+                    userIds.slice(0, i).some((uid, idx) => originalOrder.indexOf(uid) !== idx);
+                
+                await transaction.request()
+                    .input('requestId', sql.Int, requestId)
+                    .input('lineNum', sql.Int, newLineNum)
+                    .input('userId', sql.VarChar, userId)
+                    .input('role', sql.NVarChar, userId === 'MITC-01' ? 'RECEIVER' : 'CC')
+                    .input('approvedAt', sql.DateTime, shouldResetApproval ? null : currentUserData?.approvedAt)
+                    .query(`
+                        INSERT INTO RequestAccessUsers 
+                        (RequestId, LineNum, UserId, Role, ApprovedAt)
+                        VALUES (@requestId, @lineNum, @userId, @role, @approvedAt)
+                    `);
+
+                // Add notification for each user
+                await transaction.request()
+                    .input('creatorId', sql.VarChar, userId)
+                    .input('requestId', sql.Int, requestId)
+                    .input('remarks', sql.NVarChar, 
+                        `User ${userId} ${isNewUser ? 'added as' : 'reordered as'} ${userId === 'MITC-01' ? 'RECEIVER' : 'CC'} to request ${requestId}`)
+                    .query(`
+                        INSERT INTO NotificationList (CreatorId, RequestId, Remarks)
+                        VALUES (@creatorId, @requestId, @remarks)
+                    `);
+            }
+
+            // Commit the transaction
+            await transaction.commit();
+            res.json({ success: true, message: 'Users updated successfully' });
+
+        } catch (err) {
+            // If there's an error, rollback the transaction
+            await transaction.rollback();
+            throw err;
+        }
+
+    } catch (err) {
+        console.error('Error updating users:', err);
+        res.status(500).json({ error: 'Failed to update users' });
+    }
+});
+
+
+// Get user's requests
+app.get('/api/requests/:type/:userId', async (req, res) => {
+    const { type, userId } = req.params;
+    let whereClause = '';
+    let joinClause = '';
+    let orderBy = 'ORDER BY r.RequestId DESC';
+    // console.log("user request");
+    switch (type) {
+        case 'outgoing':
+            whereClause = 
+            `r.RequesterId = @userId 
+            and 1 <> ISNULL((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role IN ('CC','RECEIVER') and A.ApprovedAt is  null  ),0) 
+            and r.closedAt IS NULL` ;
+            break;
+        case 'needtoapprove':
+            whereClause = 
+            ` 1 = ISNULL((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role IN ('CC','RECEIVER') and A.ApprovedAt is  null AND A.UserId = @userId and (select ApprovedAt from [dbo].[RequestAccessUsers] C WHERE C.RequestId = r.RequestId and C.LineNum = A.Linenum-1) is not null  ),0) 
+            and r.closedAt IS NULL`;
+           
+            break;
+        case 'assignrequest':
+                joinClause = `INNER join requestaccessusers rau ON r.RequestId = rau.RequestId and rau.UserId = @userId and rau.Role IN ('RECEIVER')`;
+                whereClause = 
+                `1 <> isnull((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role IN ('CC','RECEIVER') and A.ApprovedAt is null  ),0)
+                   and r.closedAt IS NULL`;
+            break;  
+        case 'notyetapproved':
+            whereClause = 
+            `r.RequesterId = @userId 
+            and 1 = ISNULL((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId and A.Role IN ('CC','RECEIVER') and ApprovedAt is null  ),0)
+            and r.closedAt IS NULL
+            `;
+            break;
+        case 'todo':
+            whereClause = 'r.PIC = @userId  AND r.ClosedAt IS NULL';
+            break;
+        case 'done':
+            whereClause = 'r.RequesterId = @userId AND r.ClosedAt IS NOT NULL';
+            break;
+        default:
+            whereClause = 'r.RequesterId = @userId';
+    }
+
+    try {
+        const pool = await sql.connect(config);
+        const result = await pool.request()
+            .input('userId', sql.VarChar, userId)
+            .query(`
+                
+ 
+ SELECT r.*, 
+                       requester.username  as requesterName, 
+					   (
+                           SELECT STUFF((SELECT  ',' + CONCAT(u.username,' ',(CASE WHEN rau2.ApprovedAt is not null then  N'✓' end))
+                           FROM RequestAccessUsers rau2
+                           JOIN HELPDESK_USER u ON rau2.UserId = u.username
+                           WHERE rau2.RequestId = r.RequestId AND rau2.Role IN ('CC','RECEIVER')
+						   ORDER BY RAU2.LINENUM
+                           FOR XML PATH('')),1,1,'')
+                       ) as approvedByNames,
+                       PIC.username as PICName
+                FROM ApplicationRequests r
+                JOIN HELPDESK_USER requester ON r.RequesterId = requester.username
+                left join HELPDESK_USER PIC ON r.PIC = PIC.username
+                ${joinClause}
+                ${whereClause ? 'WHERE ' + whereClause : ''}
+                ${orderBy}
+            `);
+        res.json(result.recordset);
+        //console.log(result.recordset);
+    } catch (err) {
+        console.error('Error fetching requests:', err);
+        res.status(500).json({ error: 'Failed to fetch requests' });
     }
 });

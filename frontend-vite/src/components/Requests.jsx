@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './Requests.css';
 import PDFViewer from './PDFViewer';
 
@@ -17,9 +17,13 @@ const Requests = ({ user, type }) => {
   const [needToApproveCount, setNeedToApproveCount] = useState(0);
   const [todoCount, setTodoCount] = useState(0);
   const [dragTarget, setDragTarget] = useState(null);
+  const [draggedUser, setDraggedUser] = useState(null);
   const [showUserPicker, setShowUserPicker] = useState({ open: false, requestId: null, role: null });
-  const [userList, setUserList] = useState([]);
-  const [selectedUsers, setSelectedUsers] = useState([]);
+  const [modalAvailableUsers, setModalAvailableUsers] = useState([]);
+  const [modalSelectedUsers, setModalSelectedUsers] = useState([]);
+  const [originalSelectedUsers, setOriginalSelectedUsers] = useState([]);
+  const [draggedSelectedUser, setDraggedSelectedUser] = useState(null);
+  const [modalSearchTerm, setModalSearchTerm] = useState('');
   const [picDropdown, setPicDropdown] = useState({ open: false, requestId: null });
   const [timelineModal, setTimelineModal] = useState({ open: false, requestId: null });
   const [timelineDate, setTimelineDate] = useState('');
@@ -37,9 +41,8 @@ const Requests = ({ user, type }) => {
   const [picSearchTerm, setPicSearchTerm] = useState('');
 
   useEffect(() => {
-    setLoading(true);   // Reset loading at the start
-    setError(null);     // Reset error at the start
-    console.log(type, user.username);
+    setLoading(true);
+    setError(null);
 
     const fetchRequests = async () => {
       const url = `${import.meta.env.VITE_API_URL}/api/requests/${type}/${user.username}`;
@@ -48,17 +51,14 @@ const Requests = ({ user, type }) => {
         const response = await fetch(url);
         if (response.ok) {
           const data = await response.json();
-          console.log('Fetched data for', type, data);
           setRequests(data);
         } else {
-          console.error('Fetch failed for', type, 'with status', response.status);
-          setRequests([]); // Clear requests on error
+          setRequests([]);
           throw new Error('Failed to fetch requests');
         }
       } catch (error) {
-        console.error('Error fetching requests for', type, error);
         setError('Failed to load requests. Please try again later.');
-        setRequests([]); // Clear requests on error
+        setRequests([]);
       } finally {
         setLoading(false);
       }
@@ -89,16 +89,13 @@ const Requests = ({ user, type }) => {
     }
 
     return () => intervals.forEach(clearInterval);
-  }, [user?.id]);
+  }, [user?.username]);
 
   const fetchAttachments = async (requestId) => {
     try {
-      console.log('Fetching attachments for request:', requestId);
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/requests/attachments/${requestId}`);
-      console.log('Response:', response);
       if (response.ok) {
         const data = await response.json();
-        console.log('Received attachments data:', data);
         setAttachments(prev => ({
           ...prev,
           [requestId]: data
@@ -123,6 +120,7 @@ const Requests = ({ user, type }) => {
       case 'notyetapproved': return 'Not Yet Approved Requests';
       case 'needtoapprove': return 'Need to Approve Requests';
       case 'TodoRequest': return 'To Do Requests';
+      case 'done': return 'Done Requests';
       default: return 'Requests';
     }
   };
@@ -141,81 +139,135 @@ const Requests = ({ user, type }) => {
     }
   };
 
-  const handleDrop = async (e, requestId, role) => {
-    e.preventDefault();
-    const userId = e.dataTransfer.getData('userId');
-    if (!userId) return;
-    try {
-      await fetch(`${import.meta.env.VITE_API_URL}/api/requests/${requestId}/addUser`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, role }),
-      });
-      // Refresh requests after update
-      setLoading(true);
-      setError(null);
-      // Re-fetch requests
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/requests/${type}/${user.username}`);
-      if (response.ok) {
-        const data = await response.json();
-        setRequests(data);
-      }
-    } catch (error) {
-      setError('Failed to add user. Please try again.');
-    } finally {
-      setLoading(false);
-      setDragTarget(null);
-    }
-  };
-
   const fetchAllUsers = async () => {
     try {
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/users`);
       if (response.ok) {
         const data = await response.json();
-        setUserList(data);
+        setModalAvailableUsers(data);
       }
     } catch (error) {
       console.error('Failed to fetch users:', error);
     }
   };
 
-  const openUserPicker = (requestId, role) => {
+  const openUserPicker = async (requestId, role) => {
     setShowUserPicker({ open: true, requestId, role });
-    setSelectedUsers([]);
+    setModalSelectedUsers([]);
+    setOriginalSelectedUsers([]);
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/requests/${requestId}/approveduser`);
+     // console.log(response)
+      if(response.ok){
+        const existingApproved = await response.json();
+        console.log(existingApproved)
+        setModalSelectedUsers(existingApproved);
+        setOriginalSelectedUsers(existingApproved);
+      } else {  
+        console.error('Failed to fetch existing approved users');
+        setModalSelectedUsers([]);
+        setOriginalSelectedUsers([]);
+      }
+    } catch (error) {
+      console.error('Error fetching existing approved users:', error);
+      setModalSelectedUsers([]);
+      setOriginalSelectedUsers([]);
+    }
+
     fetchAllUsers();
   };
 
-  const handleUserCheckbox = (userId) => {
-    setSelectedUsers(prev =>
-      prev.includes(userId)
-        ? prev.filter(id => id !== userId)
-        : [...prev, userId]
-    );
+  const handleModalDragStart = (user) => {
+    setDraggedUser(user);
   };
 
-  const handleAddUsers = async () => {
-    if (!showUserPicker.requestId || !showUserPicker.role) return;
+  const handleSelectedUserDragStart = (e, user) => {
+    e.stopPropagation();
+    setDraggedSelectedUser(user);
+  };
+
+  const handleModalDrop = (e) => {
+    e.preventDefault();
+    if (draggedUser) {
+      const isAlreadySelected = modalSelectedUsers.some(u => u.USERNAME === draggedUser.USERNAME);
+      if (!isAlreadySelected) {
+        setModalSelectedUsers(prev => [draggedUser, ...prev]);
+      }
+      setDraggedUser(null);
+    }
+  };
+
+  const handleSelectedUserDrop = (e, targetUser) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!draggedSelectedUser || draggedSelectedUser.USERNAME === targetUser.USERNAME) {
+      setDraggedSelectedUser(null);
+      return;
+    }
+
+    const draggedIndex = modalSelectedUsers.findIndex(u => u.USERNAME === draggedSelectedUser.USERNAME);
+    const targetIndex = modalSelectedUsers.findIndex(u => u.USERNAME === targetUser.USERNAME);
+
+    if (targetIndex >= modalSelectedUsers.length - 2) {
+      setDraggedSelectedUser(null);
+      return;
+    }
+
+    const newSelectedUsers = [...modalSelectedUsers];
+    const [removed] = newSelectedUsers.splice(draggedIndex, 1);
+    newSelectedUsers.splice(targetIndex, 0, removed);
+
+    setModalSelectedUsers(newSelectedUsers);
+    setDraggedSelectedUser(null);
+  };
+
+  const handleModalRemoveUser = (userId) => {
+    if (!originalSelectedUsers.some(u => u.USERNAME === userId)) {
+      setModalSelectedUsers(prev => prev.filter(u => u.USERNAME !== userId));
+    }
+  };
+
+  const handleConfirmAddUsers = async () => {
+    if (!showUserPicker.requestId || !showUserPicker.role || modalSelectedUsers.length === 0) {
+      window.alert("Please select at least one user.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
-      // Add each selected user
-      for (const userId of selectedUsers) {
-        await fetch(`${import.meta.env.VITE_API_URL}/api/requests/${showUserPicker.requestId}/addUser`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, role: showUserPicker.role }),
-        });
-      }
-      // Refresh requests after update
+      // Create arrays of usernames for both original and new order
+      const originalOrder = originalSelectedUsers.map(u => u.USERNAME);
+      const newOrder = modalSelectedUsers.map(u => u.USERNAME);
+
+      // Send both orders to the backend
+      await fetch(`${import.meta.env.VITE_API_URL}/api/requests/${showUserPicker.requestId}/updateUsersRole`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          role: showUserPicker.role,
+          userIds: newOrder,
+          originalOrder: originalOrder // Add the original order
+        }),
+      });
+
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/requests/${type}/${user.username}`);
       if (response.ok) {
         const data = await response.json();
         setRequests(data);
       }
       setShowUserPicker({ open: false, requestId: null, role: null });
+      setModalAvailableUsers([]);
+      setModalSelectedUsers([]);
+      setOriginalSelectedUsers([]);
+      setModalSearchTerm('');
+      setDraggedUser(null);
+      setDraggedSelectedUser(null);
     } catch (error) {
-      setError('Failed to add user(s). Please try again.');
+      console.error('Failed to update user(s):', error);
+      setError(`Failed to update user(s) for role ${showUserPicker.role}. Please try again.`);
     } finally {
       setLoading(false);
     }
@@ -228,7 +280,6 @@ const Requests = ({ user, type }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.username }) 
       });
-      // Refresh requests after approval
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/requests/${type}/${user.username}`);
       if (response.ok) {
         const data = await response.json();
@@ -247,7 +298,6 @@ const Requests = ({ user, type }) => {
         body: JSON.stringify({ userId }),
       });
       setPicDropdown({ open: false, requestId: null });
-      // Refresh requests after assignment
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/requests/${type}/${user.username}`);
       if (response.ok) {
         const data = await response.json();
@@ -312,7 +362,6 @@ const Requests = ({ user, type }) => {
     }
   };
 
-  // Filtered requests based on search
   const filteredRequests = requests.filter(request => {
     if (!searchField || !searchValue && searchField !== 'CreatedDate') return true;
     if (searchField === 'RequestId') {
@@ -324,9 +373,7 @@ const Requests = ({ user, type }) => {
     if (searchField === 'Title') {
       return request.Title?.toLowerCase().includes(searchValue.toLowerCase());
     }
-    if (searchField === 'Receiver') {
-      return request.receiverName?.toLowerCase().includes(searchValue.toLowerCase());
-    }
+   
     if (searchField === 'Status') {
       return request.Status?.toLowerCase().includes(searchValue.toLowerCase());
     }
@@ -341,18 +388,17 @@ const Requests = ({ user, type }) => {
     return true;
   });
 
-  // Pagination logic
   const totalPages = Math.ceil(filteredRequests.length / ITEMS_PER_PAGE);
   const paginatedRequests = filteredRequests.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
-  // Reset to first page when search changes
   useEffect(() => {
     setCurrentPage(1);
   }, [searchField, searchValue, searchDateFrom, searchDateTo, requests]);
 
-  const filteredUsers = userList.filter(u =>
-    u.USERNAME.toLowerCase().includes(picSearchTerm.toLowerCase())
+  const filteredModalAvailableUsers = modalAvailableUsers.filter(u =>
+    u.USERNAME.toLowerCase().includes(modalSearchTerm.toLowerCase())
   );
+
   const handleAddAttachment = async (e, requestId) => {
     console.log("tes")
     const file = e.target.files[0];
@@ -376,7 +422,6 @@ const Requests = ({ user, type }) => {
         return;
       }
       alert('Attachment uploaded!');
-      // Optionally, refresh the attachments for this request
       fetchAttachments(requestId);
     } catch (err) {
       alert('Upload failed: ' + err.message);
@@ -394,7 +439,6 @@ const Requests = ({ user, type }) => {
   return (
     <div className="outgoing-requests">
       <h2>{getTitle()}</h2>
-      {/* Search Bar */}
       <div className="requests-search-bar" style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
         <label className="requests-search-label">Search By:</label>
         <select
@@ -488,7 +532,6 @@ const Requests = ({ user, type }) => {
                     <td>{request.RequestNo  }</td>
                     <td>{request.requesterName}</td>
                     <td>{request.Title}</td>
-                    <td>{request.receiverName}</td>
                     <td>
                       <span className={`status ${request.Status.toLowerCase()}`}>
                         {request.Status}
@@ -553,7 +596,9 @@ const Requests = ({ user, type }) => {
                               style={{ marginBottom: "10px", width: "100%" }}
                             />
                             <div className="scrollable-users-list">
-                              {filteredUsers.map(u => (
+                              {(modalAvailableUsers || []).filter(u =>
+                                u.USERNAME.toLowerCase().includes(picSearchTerm.toLowerCase())
+                              ).map(u => (
                                 <div
                                   key={u.USERNAME}
                                   className="user-item"
@@ -575,30 +620,33 @@ const Requests = ({ user, type }) => {
                           <div className="details-main">
                             <div className="detail-section">
                               <h4>Purpose</h4>
-                              <p>{requests.find(r => r.RequestId === request.RequestId)?.Purpose}</p>
+                              <p>{request.Purpose}</p>
                             </div>
                             <div className="detail-section">
                               <h4>Expected Benefits</h4>
-                              <p>{requests.find(r => r.RequestId === request.RequestId)?.ExpectedBenefits}</p>
+                              <p>{request.ExpectedBenefits}</p>
                             </div>
                             <div className="detail-section approved-by">
                               <h4>
-                                Approved By
-                                {type !== 'done' && (
+                                CC
+                                {type !== 'done' && !request.PICName && (
                                   <button
                                     className="mini-add-btn"
-                                    title="Add Approved By"
-                                    onClick={() => openUserPicker(request.RequestId, 'ApprovedBy')}
+                                    title="Add CC"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openUserPicker(request.RequestId, 'CC');
+                                    }}
                                     style={{ marginLeft: 6, fontSize: '1em', padding: '0 6px', cursor: 'pointer' }}
                                   >+</button>
                                 )}
                               </h4>
-                              <p>{requests.find(r => r.RequestId === request.RequestId)?.approvedByNames || 'None'}</p>
+                              <p>{request.approvedByNames || 'None'}</p>
                             </div>
                             
                             <div className="detail-section pic-section">
                               <h4>PIC</h4>
-                              <p>{requests.find(r => r.RequestId === request.RequestId)?.PICName || 'None'}</p>
+                              <p>{request.PICName || 'None'}</p>
                             </div>
                           </div>
                           <div className="attachments-section">
@@ -611,6 +659,7 @@ const Requests = ({ user, type }) => {
                                   style={{ display: 'none' }}
                                   id={`add-attachment-input-${request.RequestId}`}
                                   onChange={e => handleAddAttachment(e, request.RequestId)}
+                                  onClick={(event)=> { event.target.value = null }}
                                 />
                                 <label
                                   htmlFor={`add-attachment-input-${request.RequestId}`}
@@ -632,18 +681,18 @@ const Requests = ({ user, type }) => {
                             {attachments[request.RequestId]?.length > 0 ? (
                               <div className="attachments-list">
                                 {attachments[request.RequestId].map((file, index) => {
-                                  //console.log('File data:', file);
                                   return (
-                                    <div key={index} className="attachment-item">
-                                      <PDFViewer 
-                                        documentId={file.DocumentId} 
+                                    <div key={file.DocumentId || index} className="attachment-item">
+                                      <PDFViewer
+                                        documentId={file.DocumentId}
                                         filePath={file.FilePath}
-                                        userId={user.username} 
+                                        userId={user.username}
                                         requestId={request.RequestId}
                                         type={type}
+                                        requestNo={request.RequestNo}
                                       />
                                       <span className="upload-info">
-                                        Uploaded by {file.UploadedByName} on {new Date(file.UploadedAt).toLocaleDateString()}
+                                        Uploaded by {file.UploadedByName || file.UploadedBy} on {file.UploadedAt ? new Date(file.UploadedAt).toLocaleDateString() : 'N/A'}
                                       </span>
                                     </div>
                                   );
@@ -661,7 +710,6 @@ const Requests = ({ user, type }) => {
               ))}
             </tbody>
           </table>
-          {/* Pagination Controls */}
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginTop: 16, gap: 8 }}>
             <button
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
@@ -684,24 +732,114 @@ const Requests = ({ user, type }) => {
       {showUserPicker.open && (
         <div className="user-picker-modal">
           <div className="user-picker-content">
-            <h3>Select Users to Add as {showUserPicker.role}</h3>
-            <div className="user-list">
-              {userList.map(u => (
-                <label key={u.USERNAME} className="user-list-item">
-                  <input
-                    type="checkbox"
-                    checked={selectedUsers.includes(u.USERNAME)}
-                    onChange={() => handleUserCheckbox(u.USERNAME)}
-                  />
-                  {u.USERNAME}
-                </label>
-              ))}
+            <h3>Select Users to Add as CC</h3>
+
+            <div
+              className="drag-drop-user-picker"
+              style={{ display: 'flex', gap: '20px' }}
+            >
+                <div className="available-users-list">
+                    <h4>Available Users</h4>
+                    <input
+                        type="text"
+                        placeholder="Search users..."
+                        value={modalSearchTerm}
+                        onChange={e => setModalSearchTerm(e.target.value)}
+                        style={{ marginBottom: "10px", width: "100%" }}
+                    />
+                    <div className="users-container" style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid #eee', borderRadius: 4, padding: 8 }}>
+                        {filteredModalAvailableUsers.map(user => (
+                            <div
+                                key={user.USERNAME}
+                                className="user-item"
+                                draggable
+                                onDragStart={() => handleModalDragStart(user)}
+                            >
+                                {user.USERNAME}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div
+                  className="selected-users-drop-area"
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={handleModalDrop}
+                  style={{ minHeight: 100, border: '2px dashed #ccc', borderRadius: 8, padding: 12, flex: 1 }}
+                >
+                  <h4>Selected Users</h4>
+                  <div
+                    className="selected-users-container"
+                    style={{ display: 'flex', flexDirection: 'column', gap: 6 }}
+                    onDragOver={e => e.preventDefault()}
+                  >
+                    {modalSelectedUsers.map((user, index) => (
+                      <div
+                        key={user.USERNAME}
+                        className="selected-user-item"
+                        style={{
+                          background: '#e3f2fd',
+                          padding: '4px 8px',
+                          borderRadius: 4,
+                          border: '1px solid #bbdefb',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          cursor: 'grab',
+                          opacity: draggedSelectedUser?.USERNAME === user.USERNAME ? 0.5 : 1,
+                        }}
+                        draggable={index < modalSelectedUsers.length - 2}
+                        onDragStart={(e) => handleSelectedUserDragStart(e, user)}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => handleSelectedUserDrop(e, user)}
+                      >
+                        {user.USERNAME}
+                        {!originalSelectedUsers.some(u => u.USERNAME === user.USERNAME) && (
+                          <button
+                              type="button"
+                              className="remove-user"
+                              onClick={(e) => { e.stopPropagation(); handleModalRemoveUser(user.USERNAME); }}
+                              style={{ background: 'none', border: 'none', color: '#1a237e', cursor: 'pointer', padding: 0, fontSize: '0.9em' }}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {modalSelectedUsers.length === 0 && (
+                        <p style={{ color: '#888', fontSize: '0.9em' }}>Drag users here</p>
+                    )}
+                  </div>
+                </div>
             </div>
-            <div className="user-picker-actions">
-              <button onClick={handleAddUsers} disabled={selectedUsers.length === 0}>Update</button>
-              <button onClick={() => setShowUserPicker({ open: false, requestId: null, role: null })}>Cancel</button>
+
+            <div className="user-picker-actions" style={{ marginTop: 20, textAlign: 'right' }}>
+              <button onClick={handleConfirmAddUsers} disabled={modalSelectedUsers.length === 0 || loading}>
+                Confirm Add ({modalSelectedUsers.length})
+              </button>
+              <button onClick={() => {
+                setShowUserPicker({ open: false, requestId: null, role: null });
+                setModalAvailableUsers([]);
+                setModalSelectedUsers([]);
+                setOriginalSelectedUsers([]);
+                setModalSearchTerm('');
+                setDraggedUser(null);
+                setDraggedSelectedUser(null);
+              }} style={{ marginLeft: 12 }}>
+                Cancel
+              </button>
             </div>
+
           </div>
+          <div className="user-picker-modal-backdrop" onClick={() => {
+             setShowUserPicker({ open: false, requestId: null, role: null });
+             setModalAvailableUsers([]);
+             setModalSelectedUsers([]);
+             setOriginalSelectedUsers([]);
+             setModalSearchTerm('');
+             setDraggedUser(null);
+             setDraggedSelectedUser(null);
+          }} />
         </div>
       )}
       {timelineModal.open && (
@@ -736,7 +874,6 @@ const Requests = ({ user, type }) => {
                   style={{ width: 160 }}
                 />
                 <span className="calendar-icon">
-                  {/* Material Design calendar SVG */}
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
                     <rect x="3" y="4" width="18" height="18" rx="3" fill="#fff" stroke="#1976d2" strokeWidth="2"/>
                     <path d="M16 2v4M8 2v4" stroke="#1976d2" strokeWidth="2" strokeLinecap="round"/>
@@ -764,14 +901,16 @@ const Requests = ({ user, type }) => {
               </button>
             </div>
             {timelineError && <div className="error">{timelineError}</div>}
-            <div
+             <div
               className="timeline-history"
               style={{
                 maxHeight: 250,
                 overflowY: 'auto',
-                border: '1px solid #ccc',
-                padding: 0,
-                background: '#fafbfc'
+                border: '1.5px solid #90caf9',
+                padding: 10,
+                background: '#e3f2fd',
+                borderRadius: 6,
+                marginTop: 10,
               }}
             >
               {timelineLoading ? (
@@ -779,15 +918,15 @@ const Requests = ({ user, type }) => {
               ) : timelineHistory.length === 0 ? (
                 <div style={{ padding: 8 }}>No timeline history.</div>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.97em' }}>
+                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.97em' }}>
                   <thead>
-                    <tr style={{ background: '#e3f2fd', color: '#1976d2' }}>
-                      <th style={{ padding: '8px', borderBottom: '1px solid #bbdefb' }}>#</th>
-                      <th style={{ padding: '8px', borderBottom: '1px solid #bbdefb' }}>Action Type</th>
-                      <th style={{ padding: '8px', borderBottom: '1px solid #bbdefb' }}>Date</th>
-                      <th style={{ padding: '8px', borderBottom: '1px solid #bbdefb' }}>Remarks</th>
-                      <th style={{ padding: '8px', borderBottom: '1px solid #bbdefb' }}>By</th>
-                      <th style={{ padding: '8px', borderBottom: '1px solid #bbdefb' }}>Created At</th>
+                    <tr style={{ background: '#bbdefb', color: '#1a237e' }}>
+                      <th style={{ padding: '8px', borderBottom: '1px solid #90caf9' }}>#</th>
+                      <th style={{ padding: '8px', borderBottom: '1px solid #90caf9' }}>Action Type</th>
+                      <th style={{ padding: '8px', borderBottom: '1px solid #90caf9' }}>Date</th>
+                      <th style={{ padding: '8px', borderBottom: '1px solid #90caf9' }}>Remarks</th>
+                      <th style={{ padding: '8px', borderBottom: '1px solid #90caf9' }}>By</th>
+                      <th style={{ padding: '8px', borderBottom: '1px solid #90caf9' }}>Created At</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -795,11 +934,11 @@ const Requests = ({ user, type }) => {
                       <tr key={item.TimelineId} style={{ background: idx % 2 === 0 ? '#fff' : '#f1f8ff' }}>
                         <td style={{ padding: '6px 8px', borderBottom: '1px solid #e3f2fd', textAlign: 'center' }}>{item.TimelineId}</td>
                         <td style={{ padding: '6px 8px', borderBottom: '1px solid #e3f2fd' }}>{item.ActionType}</td>
-                        <td style={{ padding: '6px 8px', borderBottom: '1px solid #e3f2fd' }}>{new Date(item.TimeDate).toLocaleDateString()}</td>
+                        <td style={{ padding: '6px 8px', borderBottom: '1px solid #e3f2fd' }}>{item.TimeDate ? new Date(item.TimeDate).toLocaleDateString() : 'N/A'}</td>
                         <td style={{ padding: '6px 8px', borderBottom: '1px solid #e3f2fd' }}>{item.Remarks}</td>
                         <td style={{ padding: '6px 8px', borderBottom: '1px solid #e3f2fd' }}>{item.UserName || item.ActionBy}</td>
                         <td style={{ padding: '6px 8px', borderBottom: '1px solid #e3f2fd', fontSize: '0.92em', color: '#888' }}>
-                        {new Date(item.CreatedAt).toLocaleDateString()}
+                        {item.CreatedAt ? new Date(item.CreatedAt).toLocaleString() : 'N/A'}
                         </td>
                       </tr>
                     ))}
