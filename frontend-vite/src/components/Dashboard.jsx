@@ -37,10 +37,18 @@ const Dashboard = ({ user, onLogout }) => {
     attachments: []
   });
 
+  const [inferiors, setInferiors] = useState([]);
+  const [showInferiors, setShowInferiors] = useState(false);
+  const [inferiorsLoading, setInferiorsLoading] = useState(false);
+
+  const [originalUser, setOriginalUser] = useState(user);
+  const [activeUser, setActiveUser] = useState(user);
+  const [isSwitched, setIsSwitched] = useState(false);
+
   const fetchNotifications = async () => {
-    if (!user?.username) return;
+    if (!activeUser?.username) return;
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/notifications/${user.username}`);
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/notifications/${activeUser.username}`);
       if (response.ok) {
         const data = await response.json();
         setNotifications(data || []);
@@ -59,10 +67,8 @@ const Dashboard = ({ user, onLogout }) => {
     let intervals = [];
 
     const fetchCount = async (type) => {
-      //console.log("woii ")
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/requests/count/${type}/${user.username}`
-        );
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/requests/count/${type}/${activeUser.username}`);
         if (response.ok) {
           const data = await response.json();
           setRequestCounts(prev => ({
@@ -75,7 +81,7 @@ const Dashboard = ({ user, onLogout }) => {
       }
     };
 
-    if (user?.username) {
+    if (activeUser?.username) {
       requestTypes.forEach(type => {
         fetchCount(type);
         const intervalId = setInterval(() => fetchCount(type), 10000);
@@ -84,17 +90,17 @@ const Dashboard = ({ user, onLogout }) => {
     }
 
     return () => intervals.forEach(clearInterval);
-  }, [user?.username]);
+  }, [activeUser?.username]);
 
   // Fetch notifications (list, not just count)
   useEffect(() => {
     let intervalId;
     fetchNotifications();
-    if (user?.username) {
+    if (activeUser?.username) {
       intervalId = setInterval(fetchNotifications, 10000); // 30 seconds
     }
     return () => clearInterval(intervalId);
-  }, [user?.username]);
+  }, [activeUser?.username]);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -130,22 +136,43 @@ const Dashboard = ({ user, onLogout }) => {
     }
   };
 
+  useEffect(() => {
+    const fetchInferiors = async () => {
+      if (!originalUser?.username) return;
+      
+      setInferiorsLoading(true);
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/users/inferiors/${originalUser.username}`);
+        if (response.ok) {
+          const data = await response.json();
+          setInferiors(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch inferiors:', error);
+      } finally {
+        setInferiorsLoading(false);
+      }
+    };
+
+    fetchInferiors();
+  }, [originalUser?.username]);
+
   const renderContent = () => {
     switch (activeSection) {
       case 'create':
-        return <CreateRequestForm user={user} />;
+        return <CreateRequestForm user={activeUser} />;
       case 'outgoing':
-        return <Requests user={user} type="outgoing" />;
+        return <Requests user={activeUser} type="outgoing" />;
       case 'notyetapproved':
-        return <Requests user={user} type="notyetapproved" />;
+        return <Requests user={activeUser} type="notyetapproved" />;
       case 'assignrequest':
-        return <Requests user={user} type="assignrequest" />;
+        return <Requests user={activeUser} type="assignrequest" />;
       case 'todo':
-        return <Requests user={user} type="todo" />;
+        return <Requests user={activeUser} type="todo" />;
       case 'done':
-        return <Requests user={user} type="done" />;
+        return <Requests user={activeUser} type="done" />;
       case 'needtoapprove':
-        return <Requests user={user} type="needtoapprove" />;
+        return <Requests user={activeUser} type="needtoapprove" />;
       default:
         return <div className="content-section">Select a section</div>;
     }
@@ -157,6 +184,21 @@ const Dashboard = ({ user, onLogout }) => {
       ...prev,
       [targetBox]: prev[targetBox].filter(u => u.USERNAME !== userId)
     }));
+  };
+
+  const switchUser = (newUser) => {
+    console.log('newUser', newUser);
+    if (newUser.USERNAME === originalUser.username) {
+      // Switch back to original user
+
+      setActiveUser(originalUser);
+      setIsSwitched(false);
+    } else {
+      // Switch to inferior user
+      setActiveUser({ username: newUser.USERNAME });
+      setIsSwitched(true);
+    }
+    setShowInferiors(false);
   };
 
   return (
@@ -248,12 +290,93 @@ const Dashboard = ({ user, onLogout }) => {
         <div className="sidebar">
           <div className="user-profile">
             <div className="user-avatar">
-              {user?.username?.charAt(0) || 'U'}
+              {activeUser?.username?.charAt(0) || 'U'}
             </div>
             <div className="user-details">
-              <h3>{user?.username || 'User'}</h3>
-              <p className="username">@{user.username || 'username'}</p>
-            
+              
+              <p className="username">@{activeUser.username || 'username'}</p>
+              <div className="inferiors-dropdown">
+                <button 
+                  className="inferiors-toggle"
+                  onClick={() => setShowInferiors(!showInferiors)}
+                  style={{
+                    background: 'none',
+                    border: '1px solid #90caf9',
+                    borderRadius: 4,
+                    padding: '4px 8px',
+                    color: '#1976d2',
+                    cursor: 'pointer',
+                    fontSize: '0.9em',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4
+                  }}
+                >
+                  {inferiorsLoading ? 'Loading...' : `Inferiors (${inferiors.length})`}
+                  <span style={{ fontSize: '1.2em' }}>{showInferiors ? '▲' : '▼'}</span>
+                </button>
+                {showInferiors && (
+                  <div 
+                    className="inferiors-list"
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      background: '#fff',
+                      border: '1px solid #90caf9',
+                      borderRadius: 4,
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                      zIndex: 1000,
+                      minWidth: 200,
+                      maxHeight: 300,
+                      overflowY: 'auto'
+                    }}
+                  >
+                    {inferiorsLoading ? (
+                      <div style={{ padding: 8, textAlign: 'center' }}>Loading...</div>
+                    ) : inferiors.length === 0 ? (
+                      <div style={{ padding: 8, textAlign: 'center', color: '#666' }}>No inferiors found</div>
+                    ) : (
+                      <>
+                        <div 
+                          key={originalUser.username}
+                          onClick={() => switchUser({ USERNAME: originalUser.username })}
+                          style={{
+                            padding: '8px 12px',
+                            borderBottom: '1px solid #e3f2fd',
+                            cursor: 'pointer',
+                            background: activeUser.username === originalUser.username ? '#e3f2fd' : 'transparent',
+                            fontWeight: activeUser.username === originalUser.username ? 'bold' : 'normal',
+                            ':hover': {
+                              background: '#e3f2fd'
+                            }
+                          }}
+                        >
+                          {originalUser.username} (You)
+                        </div>
+                        {inferiors.map(inferior => (
+                          <div 
+                            key={inferior.USERNAME}
+                            onClick={() => switchUser(inferior)}
+                            style={{
+                              padding: '8px 12px',
+                              borderBottom: '1px solid #e3f2fd',
+                              cursor: 'pointer',
+                              background: activeUser.username === inferior.USERNAME ? '#e3f2fd' : 'transparent',
+                              fontWeight: activeUser.username === inferior.USERNAME ? 'bold' : 'normal',
+                              ':hover': {
+                                background: '#e3f2fd'
+                              }
+                            }}
+                          >
+                            {inferior.USERNAME}
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           <nav className="sidebar-nav">

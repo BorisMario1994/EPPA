@@ -135,6 +135,7 @@
 .user-details {
   flex: 1;
   min-width: 0;
+  position: relative;
 }
 
 .user-details h3 {
@@ -164,6 +165,23 @@
 .user-details .email {
   color: #95a5a6;
   font-size: 0.8rem;
+}
+
+.inferiors-dropdown {
+  position: relative;
+  margin-top: 8px;
+}
+
+.inferiors-toggle:hover {
+  background-color: #e3f2fd !important;
+}
+
+.inferiors-list {
+  margin-top: 4px;
+}
+
+.inferiors-list div:hover {
+  background-color: #e3f2fd;
 }
 
 .sidebar-nav {

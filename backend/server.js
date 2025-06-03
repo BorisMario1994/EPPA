@@ -672,10 +672,24 @@ app.post('/api/requests/:requestId/approve', async (req, res) => {
         WHERE RequestId = @requestId AND UserId = @userId AND Role in ('CC','RECEIVER')
       `);
 
+       // Now, fetch the RequestNo using the RequestId
+       const requestResult = await pool.request()
+       .input('requestId', sql.Int, requestId)
+       .query(`
+           SELECT RequestNo
+           FROM ApplicationRequests
+           WHERE RequestId = @requestId
+       `);
+
+   let requestNo = 'N/A'; // Default in case RequestNo is not found (shouldn't happen if RequestId is valid)
+   if (requestResult.recordset.length > 0) {
+       requestNo = requestResult.recordset[0].RequestNo;
+   }
+
       await pool.request()
         .input('creatorId', sql.VarChar, userId) // The user who triggered the action
         .input('requestId', sql.Int, requestId)
-        .input('remarks', sql.NVarChar, `User ${userId} approved request ${requestId}`)
+        .input('remarks', sql.NVarChar, `User ${userId} approved request ${requestNo}`)
         .query(`
             INSERT INTO NotificationList (CreatorId, RequestId, Remarks)
             VALUES (@creatorId, @requestId, @remarks)
@@ -691,7 +705,7 @@ app.post('/api/requests/:requestId/approve', async (req, res) => {
 // Assign PIC for a request
 app.post('/api/requests/:requestId/assignpic', async (req, res) => {
   const { requestId } = req.params;
-  const { userId } = req.body; // Pass userId in the body
+  const { userId,creator } = req.body; // Pass userId in the body
 
   if (!userId) {
     return res.status(400).json({ error: 'userId is required' });
@@ -710,10 +724,24 @@ app.post('/api/requests/:requestId/assignpic', async (req, res) => {
         WHERE RequestId = @requestId
       `);
 
+       // Now, fetch the RequestNo using the RequestId
+       const requestResult = await pool.request()
+       .input('requestId', sql.Int, requestId)
+       .query(`
+           SELECT RequestNo
+           FROM ApplicationRequests
+           WHERE RequestId = @requestId
+       `);
+
+   let requestNo = 'N/A'; // Default in case RequestNo is not found (shouldn't happen if RequestId is valid)
+   if (requestResult.recordset.length > 0) {
+       requestNo = requestResult.recordset[0].RequestNo;
+   }
+
       await pool.request()
-        .input('creatorId', sql.VarChar, userId) // The user who triggered the action
+        .input('creatorId', sql.VarChar, creator) // The user who triggered the action
         .input('requestId', sql.Int, requestId)
-        .input('remarks', sql.NVarChar, `User ${userId} assigned as PIC to request ${requestId}`)
+        .input('remarks', sql.NVarChar, `User ${userId} assigned as PIC to request ${requestNo}`)
         .query(`
             INSERT INTO NotificationList (CreatorId, RequestId, Remarks)
             VALUES (@creatorId, @requestId, @remarks)
@@ -743,7 +771,21 @@ app.get('/api/notifications/:userId', async (req, res) => {
         JOIN  RequestAccessUsers C ON C.RequestId = A.RequestId 
         LEFT JOIN Notificationread D ON D.NotificationId = A.NotificationId and D.ContributorId = C.UserId
         WHERE D.notificationId is null
+         and C.UserId = @userId
+		AND A.CreatorId <> @userId
+        AND C.ROLE <> 'REQUESTER'
+		AND 1 = (SELECT 1 FROM RequestAccessUsers T0 WHERE T0.LineNum = C.LineNum -1 AND T0.RequestId = A.RequestId AND T0.ApprovedAt IS NOT NULL)
+        UNION ALL 
+		     SELECT A.NotificationId, A.CreatorId, A.RequestId, A.Remarks, B.username as CreatorName,
+        C.UserId NotifReceiver
+        FROM NotificationList A
+        JOIN HELPDESK_USER B ON A.CreatorId = B.username
+        JOIN  RequestAccessUsers C ON C.RequestId = A.RequestId 
+        LEFT JOIN Notificationread D ON D.NotificationId = A.NotificationId and D.ContributorId = C.UserId
+        WHERE D.notificationId is null
         and C.UserId = @userId
+		AND A.CreatorId <> @userId
+		AND C.Role = 'REQUESTER'
         ORDER BY A.NotificationId DESC
 
       `);
@@ -860,12 +902,26 @@ app.post('/api/timeline/:requestId', async (req, res) => {
         `);
     }
 
+     // Now, fetch the RequestNo using the RequestId
+     const requestResult = await pool.request()
+     .input('requestId', sql.Int, requestId)
+     .query(`
+         SELECT RequestNo
+         FROM ApplicationRequests
+         WHERE RequestId = @requestId
+     `);
+
+ let requestNo = 'N/A'; // Default in case RequestNo is not found (shouldn't happen if RequestId is valid)
+ if (requestResult.recordset.length > 0) {
+     requestNo = requestResult.recordset[0].RequestNo;
+ }
+
     // Add to NotificationList
     await pool.request()
       .input('creatorId', sql.VarChar, userId)
       .input('requestId', sql.Int, requestId)
       .input('actionType', sql.NVarChar(100), actionType)
-      .input('remarks', sql.NVarChar, `User ${userId} added a new timeline (${actionType}) entry to request ${requestId}`)
+      .input('remarks', sql.NVarChar, `User ${userId} added a new timeline (${actionType}) entry to request ${requestNo}`)
       .query(`
         INSERT INTO NotificationList (CreatorId, RequestId, Remarks)
         VALUES (@creatorId, @requestId, @remarks)
@@ -1041,12 +1097,26 @@ app.post('/api/requests/:requestId/updateUsersRole', async (req, res) => {
                         VALUES (@requestId, @lineNum, @userId, @role, @approvedAt)
                     `);
 
+                     // Now, fetch the RequestNo using the RequestId
+        const requestResult = await pool.request()
+        .input('requestId', sql.Int, requestId)
+        .query(`
+            SELECT RequestNo
+            FROM ApplicationRequests
+            WHERE RequestId = @requestId
+        `);
+
+    let requestNo = 'N/A'; // Default in case RequestNo is not found (shouldn't happen if RequestId is valid)
+    if (requestResult.recordset.length > 0) {
+        requestNo = requestResult.recordset[0].RequestNo;
+    }
+
                 // Add notification for each user
                 await transaction.request()
                     .input('creatorId', sql.VarChar, userId)
                     .input('requestId', sql.Int, requestId)
                     .input('remarks', sql.NVarChar, 
-                        `User ${userId} ${isNewUser ? 'added as' : 'reordered as'} ${userId === 'MITC-01' ? 'RECEIVER' : 'CC'} to request ${requestId}`)
+                        `User ${userId} ${isNewUser ? 'added as' : 'reordered as'} ${userId === 'MITC-01' ? 'RECEIVER' : 'CC'} to request ${requestNo}`)
                     .query(`
                         INSERT INTO NotificationList (CreatorId, RequestId, Remarks)
                         VALUES (@creatorId, @requestId, @remarks)
@@ -1143,5 +1213,27 @@ app.get('/api/requests/:type/:userId', async (req, res) => {
     } catch (err) {
         console.error('Error fetching requests:', err);
         res.status(500).json({ error: 'Failed to fetch requests' });
+    }
+});
+
+// Get inferiors of the current user
+app.get('/api/users/inferiors/:userId', async (req, res) => {
+    const { userId } = req.params;
+    
+    try {
+        const pool = await sql.connect(config);
+        const result = await pool.request()
+            .input('userId', sql.VarChar, userId)
+            .query(`
+                SELECT USERNAME 
+                FROM HELPDESK_USER
+                WHERE SUPERIOR = @userId
+                ORDER BY USERNAME
+            `);
+        
+        res.json(result.recordset);
+    } catch (err) {
+        console.error('Error fetching inferiors:', err);
+        res.status(500).json({ error: 'Failed to fetch inferiors' });
     }
 });

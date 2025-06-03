@@ -292,10 +292,11 @@ const Requests = ({ user, type }) => {
 
   const handleAssignPIC = async (requestId, userId) => {
     try {
+      console.log(userId)
       await fetch(`${import.meta.env.VITE_API_URL}/api/requests/${requestId}/assignpic`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ userId,creator : user.username }),
       });
       setPicDropdown({ open: false, requestId: null });
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/requests/${type}/${user.username}`);
