@@ -1063,12 +1063,12 @@ app.post('/api/requests/:requestId/updateUsersRole', async (req, res) => {
                     WHERE RequestId = @requestId 
                     AND Role IN ('CC', 'RECEIVER')
                 `);
-
+                console.log("kk")    
             // 4. Insert new entries with updated line numbers
             for (let i = 0; i < userIds.length; i++) {
                 const userId = userIds[i];
                 const newLineNum = i + 1;
-                const currentUserData = currentLineNumMap.get(UserId);
+                const currentUserData = currentLineNumMap.get(userId);
                 console.log(currentUserData)
                 // Determine if this user's order has changed
                 const originalIndex = originalOrder.indexOf(userId);
@@ -1096,7 +1096,7 @@ app.post('/api/requests/:requestId/updateUsersRole', async (req, res) => {
                         (RequestId, LineNum, UserId, Role, ApprovedAt)
                         VALUES (@requestId, @lineNum, @userId, @role, @approvedAt)
                     `);
-
+            console.log("hei")
                      // Now, fetch the RequestNo using the RequestId
         const requestResult = await pool.request()
         .input('requestId', sql.Int, requestId)
@@ -1105,12 +1105,12 @@ app.post('/api/requests/:requestId/updateUsersRole', async (req, res) => {
             FROM ApplicationRequests
             WHERE RequestId = @requestId
         `);
-
+console.log("B")
     let requestNo = 'N/A'; // Default in case RequestNo is not found (shouldn't happen if RequestId is valid)
     if (requestResult.recordset.length > 0) {
         requestNo = requestResult.recordset[0].RequestNo;
     }
-
+    console.log("c")
                 // Add notification for each user
                 await transaction.request()
                     .input('creatorId', sql.VarChar, userId)
@@ -1122,7 +1122,7 @@ app.post('/api/requests/:requestId/updateUsersRole', async (req, res) => {
                         VALUES (@creatorId, @requestId, @remarks)
                     `);
             }
-
+            console.log("D")
             // Commit the transaction
             await transaction.commit();
             res.json({ success: true, message: 'Users updated successfully' });
