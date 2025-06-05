@@ -49,7 +49,7 @@ const Login = ({ onLogin }) => {
       <div className="login-box">
         <div className="login-header">
           <h1>EPPA</h1>
-          <p>Environmental Project Planning Application</p>
+          <p>Elektronik Permintaan Program Aplikasi</p>
         </div>
         <form onSubmit={handleSubmit} className="login-form">
           <div className="form-group">
@@ -85,7 +85,7 @@ const Login = ({ onLogin }) => {
           </button>
         </form>
         <div className="login-footer">
-          <p>© 2024 EPPA. All rights reserved.</p>
+          <p>© 2025 EPPA. All rights reserved.</p>
         </div>
       </div>
     </div>

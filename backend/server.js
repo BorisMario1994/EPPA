@@ -537,14 +537,12 @@ app.get('/api/requests/count/:type/:userId', async (req, res) => {
             `r.RequesterId = @userId 
               and 1 <> isnull((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role IN ('CC','RECEIVER') and A.ApprovedAt is  null  ) ,0)
             and r.closedAt IS NULL`;
-
             break;
         case 'assignrequest':
             joinClause = `INNER join requestaccessusers rau ON r.RequestId = rau.RequestId and rau.UserId = @userId and rau.Role IN ('RECEIVER')`;
             whereClause = 
             `1 <> isnull((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role IN ('CC','RECEIVER') and A.ApprovedAt is null  ),0)
             and r.closedAt IS NULL`;
-
             break;
         case 'notyetapproved':
             whereClause = 
@@ -552,10 +550,12 @@ app.get('/api/requests/count/:type/:userId', async (req, res) => {
             and 1 = ISNULL((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId and A.Role IN ('CC','RECEIVER') and ApprovedAt is null  ),0)
             and r.closedAt IS NULL
             `;
-             break;
+            break;
         case 'done':
-            whereClause = 'r.RequesterId = @userId AND r.ClosedAt IS NOT NULL';
-
+            whereClause = '(r.RequesterId = @userId or r.PIC = @userId) AND r.ClosedAt IS NOT NULL';
+            break;
+        case 'all':
+            whereClause = '1=1'; // This will return all requests
             break;
         case 'needtoapprove':
             whereClause = 
@@ -564,9 +564,6 @@ app.get('/api/requests/count/:type/:userId', async (req, res) => {
             break;
         case 'todo':
             whereClause = 'r.PIC = @userId  AND r.ClosedAt IS NULL';
-            break;
-            ;
-            whereClause = 'r.closedAt IS NULL';
             break;
         default:
             return res.status(400).json({ error: 'Invalid type' });
@@ -1026,7 +1023,7 @@ console.log("tes")
 app.post('/api/requests/:requestId/updateUsersRole', async (req, res) => {
     const { requestId } = req.params;
     const { role, userIds, originalOrder } = req.body;
-    console.log(req.body)
+
     if (!userIds || !Array.isArray(userIds)) {
         return res.status(400).json({ error: 'userIds array is required' });
     }
@@ -1054,7 +1051,6 @@ app.post('/api/requests/:requestId/updateUsersRole', async (req, res) => {
             const currentLineNumMap = new Map(
                 currentLineNums.recordset.map(record => [record.UserId, { lineNum: record.LineNum, approvedAt: record.ApprovedAt }])
             );
-            console.log(currentLineNumMap)
             // 3. Delete all existing CC and RECEIVER entries for this request
             await transaction.request()
                 .input('requestId', sql.Int, requestId)
@@ -1063,22 +1059,17 @@ app.post('/api/requests/:requestId/updateUsersRole', async (req, res) => {
                     WHERE RequestId = @requestId 
                     AND Role IN ('CC', 'RECEIVER')
                 `);
-                console.log("kk")    
             // 4. Insert new entries with updated line numbers
             for (let i = 0; i < userIds.length; i++) {
                 const userId = userIds[i];
                 const newLineNum = i + 1;
                 const currentUserData = currentLineNumMap.get(userId);
-                console.log(currentUserData)
+            
                 // Determine if this user's order has changed
                 const originalIndex = originalOrder.indexOf(userId);
                 const isNewUser = originalIndex === -1;
                 const hasOrderChanged = !isNewUser && originalIndex !== i;
-                console.log(originalIndex)
-                console.log(isNewUser)
-                console.log(hasOrderChanged)
-                console.log(userIds.slice(0, i).some((uid, idx) => originalOrder.indexOf(uid) !== idx))
-                // Set ApprovedAt to null if:
+               // Set ApprovedAt to null if:
                 // 1. User is new
                 // 2. User's order has changed
                 // 3. User is after a position where order changed
@@ -1096,7 +1087,6 @@ app.post('/api/requests/:requestId/updateUsersRole', async (req, res) => {
                         (RequestId, LineNum, UserId, Role, ApprovedAt)
                         VALUES (@requestId, @lineNum, @userId, @role, @approvedAt)
                     `);
-            console.log("hei")
                      // Now, fetch the RequestNo using the RequestId
         const requestResult = await pool.request()
         .input('requestId', sql.Int, requestId)
@@ -1105,12 +1095,11 @@ app.post('/api/requests/:requestId/updateUsersRole', async (req, res) => {
             FROM ApplicationRequests
             WHERE RequestId = @requestId
         `);
-console.log("B")
     let requestNo = 'N/A'; // Default in case RequestNo is not found (shouldn't happen if RequestId is valid)
     if (requestResult.recordset.length > 0) {
         requestNo = requestResult.recordset[0].RequestNo;
     }
-    console.log("c")
+
                 // Add notification for each user
                 await transaction.request()
                     .input('creatorId', sql.VarChar, userId)
@@ -1122,7 +1111,7 @@ console.log("B")
                         VALUES (@creatorId, @requestId, @remarks)
                     `);
             }
-            console.log("D")
+            
             // Commit the transaction
             await transaction.commit();
             res.json({ success: true, message: 'Users updated successfully' });
@@ -1140,13 +1129,38 @@ console.log("B")
 });
 
 
+
+// Check if Close Request action exists for a request
+app.get('/api/requests/:requestId/hasCloseRequest', async (req, res) => {
+    const { requestId } = req.params;
+    
+    try {
+        const pool = await sql.connect(config);
+        const result = await pool.request()
+            .input('requestId', sql.Int, requestId)
+            .query(`
+                SELECT COUNT(*) as count
+                FROM RequestTimeline
+                WHERE RequestId = @requestId 
+                AND ActionType = 'Close Request'
+            `);
+        
+        const hasCloseRequest = result.recordset[0].count > 0;
+        res.json({ hasCloseRequest });
+    } catch (err) {
+        console.error('Error checking close request status:', err);
+        res.status(500).json({ error: 'Failed to check close request status' });
+    }
+});
+
+
 // Get user's requests
 app.get('/api/requests/:type/:userId', async (req, res) => {
     const { type, userId } = req.params;
     let whereClause = '';
     let joinClause = '';
     let orderBy = 'ORDER BY r.RequestId DESC';
-    // console.log("user request");
+    
     switch (type) {
         case 'outgoing':
             whereClause = 
@@ -1158,13 +1172,12 @@ app.get('/api/requests/:type/:userId', async (req, res) => {
             whereClause = 
             ` 1 = ISNULL((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role IN ('CC','RECEIVER') and A.ApprovedAt is  null AND A.UserId = @userId and (select ApprovedAt from [dbo].[RequestAccessUsers] C WHERE C.RequestId = r.RequestId and C.LineNum = A.Linenum-1) is not null  ),0) 
             and r.closedAt IS NULL`;
-           
             break;
         case 'assignrequest':
-                joinClause = `INNER join requestaccessusers rau ON r.RequestId = rau.RequestId and rau.UserId = @userId and rau.Role IN ('RECEIVER')`;
-                whereClause = 
-                `1 <> isnull((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role IN ('CC','RECEIVER') and A.ApprovedAt is null  ),0)
-                   and r.closedAt IS NULL`;
+            joinClause = `INNER join requestaccessusers rau ON r.RequestId = rau.RequestId and rau.UserId = @userId and rau.Role IN ('RECEIVER')`;
+            whereClause = 
+            `1 <> isnull((select distinct 1 from [dbo].[RequestAccessUsers] A WHERE  A.RequestId = r.RequestId AND A.Role IN ('CC','RECEIVER') and A.ApprovedAt is null  ),0)
+               and r.closedAt IS NULL`;
             break;  
         case 'notyetapproved':
             whereClause = 
@@ -1178,6 +1191,9 @@ app.get('/api/requests/:type/:userId', async (req, res) => {
             break;
         case 'done':
             whereClause = 'r.RequesterId = @userId AND r.ClosedAt IS NOT NULL';
+            break;
+        case 'all':
+            whereClause = `@userId in (select username from helpdesk_user where username like '%MISW%' or username like '%MITC%')`; // This will return all requests
             break;
         default:
             whereClause = 'r.RequesterId = @userId';

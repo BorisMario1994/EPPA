@@ -10,6 +10,7 @@ const requestTypes = [
   'assignrequest',
   'notyetapproved',
   'done',
+  'all',
   'needtoapprove',
   'todo',
 ];
@@ -171,6 +172,10 @@ const Dashboard = ({ user, onLogout }) => {
         return <Requests user={activeUser} type="todo" />;
       case 'done':
         return <Requests user={activeUser} type="done" />;
+      case 'closed':
+        return <Requests user={activeUser} type="closed" />;
+      case 'all':
+        return <Requests user={activeUser} type="all" />;
       case 'needtoapprove':
         return <Requests user={activeUser} type="needtoapprove" />;
       default:
@@ -405,7 +410,7 @@ const Dashboard = ({ user, onLogout }) => {
               On Progress Requests ({requestCounts.outgoing})
             </button>
             <button 
-              className={`nav-item ${activeSection === 'AssignRequest' ? 'active' : ''}`}
+              className={`nav-item ${activeSection === 'assignrequest' ? 'active' : ''}`}
               onClick={() => setActiveSection('assignrequest')}
             >
               Assign Requests ({requestCounts.assignrequest})
@@ -422,6 +427,14 @@ const Dashboard = ({ user, onLogout }) => {
             >
               Done Requests ({requestCounts.done})
             </button>
+            {(activeUser.username.startsWith('MITC') || activeUser.username.startsWith('MISW')) && (
+              <button 
+                className={`nav-item ${activeSection === 'all' ? 'active' : ''}`}
+                onClick={() => setActiveSection('all')}
+              >
+                All Requests ({requestCounts.all})
+              </button>
+            )}
           </nav>
         </div>
         <main className="main-content">

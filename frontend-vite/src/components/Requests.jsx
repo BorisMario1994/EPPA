@@ -39,6 +39,7 @@ const Requests = ({ user, type }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedSidebar, setSelectedSidebar] = useState(null);
   const [picSearchTerm, setPicSearchTerm] = useState('');
+  const [hasCloseRequest, setHasCloseRequest] = useState({});
 
   useEffect(() => {
     setLoading(true);
@@ -316,7 +317,17 @@ const Requests = ({ user, type }) => {
     setTimelineLoading(true);
     setTimelineError('');
     setTimelineActionType('');
+
     try {
+      // Check if request has a close request action
+      if (type === 'outgoing') {
+        const closeCheckResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/requests/${requestId}/hasCloseRequest`);
+        if (closeCheckResponse.ok) {
+          const { hasCloseRequest: hasClose } = await closeCheckResponse.json();
+          setHasCloseRequest(prev => ({ ...prev, [requestId]: hasClose }));
+        }
+      }
+
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/timeline/${requestId}`);
       if (res.ok) {
         const data = await res.json();
@@ -521,7 +532,7 @@ const Requests = ({ user, type }) => {
                 <th>Status</th>
                 <th>Created Date</th>
                 <th>Action</th>
-                {(type === 'outgoing' || type === 'todo' || type === 'done' || type === 'assignrequest') && <th>Timeline</th>}
+                {(type === 'outgoing' || type === 'todo' || type === 'done' || type === 'assignrequest' || type === 'all' || type === 'closed') && <th>Timeline</th>}
                 {type === 'needtoapprove' && <th></th>}
                 {type === 'assignrequest' && <th>PIC</th>}
               </tr>
@@ -538,7 +549,10 @@ const Requests = ({ user, type }) => {
                         {request.Status}
                       </span>
                     </td>
-                    <td>{new Date(request.CreatedAt).toLocaleDateString()}</td>
+                    <td>{request.CreatedAt
+                  ? new Date(request.CreatedAt).toISOString().slice(0, 10).replace('T', ' ')
+                  : 'N/A'}</td>
+     
                     <td>
                       <button className="view-details-btn">
                         {expandedRequest === request.RequestId ? 'Hide Details' : 'View Details'}
@@ -556,7 +570,7 @@ const Requests = ({ user, type }) => {
                         </button>
                       )}
                     </td>
-                    {(type === 'outgoing' || type === 'todo' || type === 'done' || type === 'assignrequest') && (
+                    {(type === 'outgoing' || type === 'todo' || type === 'done' || type === 'assignrequest' || type === 'all' || type === 'closed') && (
                       <td>
                         <button
                           className="view-details-btn"
@@ -854,6 +868,7 @@ const Requests = ({ user, type }) => {
                   value={timelineActionType}
                   onChange={e => setTimelineActionType(e.target.value)}
                   style={{ width: 180, marginRight: 8, padding: '6px 10px', borderRadius: 4, border: '1px solid #90caf9', color: '#1a237e', background: '#fff' }}
+                  disabled={type === 'done'}
                 >
                   <option value="">Select Action</option>
                   <option value="Target Selesai">Target Selesai</option>
@@ -861,7 +876,7 @@ const Requests = ({ user, type }) => {
                   <option value="Tanggal Selesai Dikerjakan">Tanggal Selesai Dikerjakan</option>
                   <option value="Target Pengecekan">Target Pengecekan</option>
                   <option value="Perpanjangan Tgl Pengecekan">Perpanjangan Tgl Pengecekan</option>
-                  {type === 'outgoing' && (
+                  {type === 'outgoing' && !hasCloseRequest[timelineModal.requestId] && (
                     <option value="Close Request">Close Request</option>
                   )}
                 </select>
@@ -873,6 +888,7 @@ const Requests = ({ user, type }) => {
                   value={timelineDate}
                   onChange={e => setTimelineDate(e.target.value)}
                   style={{ width: 160 }}
+                  disabled={type === 'done'}
                 />
                 <span className="calendar-icon">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
@@ -892,14 +908,17 @@ const Requests = ({ user, type }) => {
                   value={timelineRemarks}
                   onChange={e => setTimelineRemarks(e.target.value)}
                   style={{ width: 200, marginRight: 8 }}
+                  disabled={type === 'done'}
                 />
               </label>
-              <button
-                onClick={handleAddTimeline}
-                disabled={!timelineDate || !timelineRemarks || !timelineActionType || timelineLoading}
-              >
-                Add
-              </button>
+              {type !== 'done' && (
+                <button
+                  onClick={handleAddTimeline}
+                  disabled={!timelineDate || !timelineRemarks || !timelineActionType || timelineLoading}
+                >
+                  Add
+                </button>
+              )}
             </div>
             {timelineError && <div className="error">{timelineError}</div>}
              <div
@@ -939,7 +958,9 @@ const Requests = ({ user, type }) => {
                         <td style={{ padding: '6px 8px', borderBottom: '1px solid #e3f2fd' }}>{item.Remarks}</td>
                         <td style={{ padding: '6px 8px', borderBottom: '1px solid #e3f2fd' }}>{item.UserName || item.ActionBy}</td>
                         <td style={{ padding: '6px 8px', borderBottom: '1px solid #e3f2fd', fontSize: '0.92em', color: '#888' }}>
-                        {item.CreatedAt ? new Date(item.CreatedAt).toLocaleString() : 'N/A'}
+                        {item.CreatedAt
+                      ? new Date(item.CreatedAt).toISOString().slice(0, 19).replace('T', ' ')
+                      : 'N/A'}
                         </td>
                       </tr>
                     ))}
