@@ -555,7 +555,7 @@ app.get('/api/requests/count/:type/:userId', async (req, res) => {
             whereClause = '(r.RequesterId = @userId or r.PIC = @userId) AND r.ClosedAt IS NOT NULL';
             break;
         case 'all':
-            whereClause = '1=1'; // This will return all requests
+            whereClause = `@userId in (select username from helpdesk_user where username like '%MISW%' or username like '%MITC%')`; // This will return all requests // This will return all requests
             break;
         case 'needtoapprove':
             whereClause = 
