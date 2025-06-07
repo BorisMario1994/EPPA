@@ -262,7 +262,7 @@ app.post('/api/requests', upload.array('attachments'), async (req, res) => {
                     await pool.request()
                 // After successful insert into RequestAccessUsers
                 await pool.request()
-                    .input('creatorId', sql.VarChar, userId) // The user who triggered the action
+                    .input('creatorId', sql.VarChar, requesterId) // The user who triggered the action
                     .input('requestId', sql.Int, requestId)
                     .input('remarks', sql.NVarChar, `User ${userId} added as ${userId === 'MITC-01' ? 'Receiver' : 'CC'} to request ${newRequestNo}`)
                     .query(`
@@ -1022,7 +1022,7 @@ console.log("tes")
 // Add this new endpoint in server.js
 app.post('/api/requests/:requestId/updateUsersRole', async (req, res) => {
     const { requestId } = req.params;
-    const { role, userIds, originalOrder } = req.body;
+    const { role, userIds, originalOrder,CreatorId } = req.body;
 
     if (!userIds || !Array.isArray(userIds)) {
         return res.status(400).json({ error: 'userIds array is required' });
@@ -1102,7 +1102,7 @@ app.post('/api/requests/:requestId/updateUsersRole', async (req, res) => {
 
                 // Add notification for each user
                 await transaction.request()
-                    .input('creatorId', sql.VarChar, userId)
+                    .input('creatorId', sql.VarChar, CreatorId)
                     .input('requestId', sql.Int, requestId)
                     .input('remarks', sql.NVarChar, 
                         `User ${userId} ${isNewUser ? 'added as' : 'reordered as'} ${userId === 'MITC-01' ? 'RECEIVER' : 'CC'} to request ${requestNo}`)

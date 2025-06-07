@@ -250,7 +250,9 @@ const Requests = ({ user, type }) => {
         body: JSON.stringify({
           role: showUserPicker.role,
           userIds: newOrder,
-          originalOrder: originalOrder // Add the original order
+          originalOrder: originalOrder,
+          CreatorId : user.username
+          // Add the original order
         }),
       });
 
